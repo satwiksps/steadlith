@@ -1,35 +1,101 @@
 :root {
-  --steadlith-border: color-mix(in srgb, currentColor 16%, transparent);
+  --md-primary-fg-color: #176b4a;
+  --md-primary-fg-color--light: #23815c;
+  --md-primary-fg-color--dark: #0f5137;
+  --md-accent-fg-color: #176b4a;
+  --md-typeset-a-color: #176b4a;
+  --steadlith-border: rgb(23 107 74 / 20%);
+  --steadlith-surface: #f5f9f7;
 }
 
-.sidebar-brand-text {
-  font-weight: 650;
-  letter-spacing: -0.015em;
+[data-md-color-scheme="slate"] {
+  --md-default-bg-color: #0b0e0c;
+  --md-default-fg-color: #dce6df;
+  --md-code-bg-color: #111713;
+  --md-primary-fg-color: #111713;
+  --md-primary-fg-color--light: #17231c;
+  --md-primary-fg-color--dark: #0b0e0c;
+  --md-accent-fg-color: #8ce8b3;
+  --md-typeset-a-color: #8ce8b3;
+  --steadlith-border: rgb(140 232 179 / 22%);
+  --steadlith-surface: #111713;
 }
 
-.sidebar-logo {
+body {
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+}
+
+.md-header {
+  position: sticky;
+  top: 0;
+  box-shadow: none;
+}
+
+.md-header__button.md-logo img,
+.md-nav__button.md-logo img {
   width: 2.5rem;
   height: 2.5rem;
+  object-fit: contain;
 }
 
-.content {
+.md-typeset {
   line-height: 1.68;
+  overflow-wrap: break-word;
 }
 
-.content h1,
-.content h2,
-.content h3 {
-  letter-spacing: -0.018em;
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3 {
+  font-weight: 650;
+  letter-spacing: -0.025em;
 }
 
-.content table.docutils {
+.md-typeset h1 {
+  color: var(--md-default-fg-color);
+}
+
+.md-typeset code,
+.md-typeset pre {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+.md-typeset table.docutils {
   display: table;
   width: 100%;
-  font-size: 0.92rem;
+  font-size: 0.78rem;
+  border-radius: 0.25rem;
+  box-shadow: none;
 }
 
-.content table.docutils th {
+.md-typeset table.docutils th {
   white-space: nowrap;
+}
+
+.md-typeset .md-button {
+  border-radius: 0.4rem;
+  font-weight: 600;
+}
+
+.md-typeset .highlight,
+.md-typeset div[class*="highlight-"] {
+  max-width: 100%;
+  overflow: auto;
+  border-radius: 0.4rem;
+  box-shadow: none;
+}
+
+.md-typeset .highlight pre,
+.md-typeset div[class*="highlight-"] pre {
+  margin: 0;
+  background: var(--md-code-bg-color);
+}
+
+.md-typeset .admonition,
+.md-typeset details {
+  border-radius: 0.4rem;
+  box-shadow: none;
 }
 
 .doc-card-grid {
@@ -41,9 +107,10 @@
 
 .doc-card {
   border: 1px solid var(--steadlith-border);
-  border-radius: 0.55rem;
+  border-radius: 0.5rem;
   padding: 1rem 1.1rem;
-  background: var(--color-background-secondary);
+  background: var(--steadlith-surface);
+  box-shadow: none;
 }
 
 .doc-card p {
@@ -55,13 +122,13 @@
 }
 
 .support-note {
-  border-left: 3px solid var(--color-brand-primary);
+  border-left: 3px solid var(--md-accent-fg-color);
   padding: 0.75rem 1rem;
   margin: 1.5rem 0;
-  background: var(--color-background-secondary);
+  background: var(--steadlith-surface);
 }
 
-code.literal {
+.md-typeset code.literal {
   overflow-wrap: anywhere;
 }
 
@@ -70,8 +137,14 @@ code.literal {
     grid-template-columns: 1fr;
   }
 
-  .content table.docutils {
+  .md-content,
+  .md-content__inner {
+    min-width: 0;
+  }
+
+  .md-typeset table.docutils {
     display: block;
+    max-width: 100%;
     overflow-x: auto;
   }
 }

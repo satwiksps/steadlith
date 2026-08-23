@@ -1,17 +1,33 @@
-<p align="center">
+<div align="center">
+  <h1 align="center">Steadlith</h1>
+
   <img src="https://raw.githubusercontent.com/satwiksps/steadlith/main/assets/steadlith-banner.svg" alt="Steadlith" width="100%">
-</p>
 
-# Steadlith
+  <p>Steadlith reuses unchanged RAG chunks with content-defined identities, cache-aware planning, and transactional indexing.</p>
 
-[![CI](https://github.com/satwiksps/steadlith/actions/workflows/ci.yml/badge.svg)](https://github.com/satwiksps/steadlith/actions/workflows/ci.yml)
-[![Documentation](https://readthedocs.org/projects/steadlith/badge/?version=latest)](https://steadlith.readthedocs.io/en/latest/)
-[![Codecov](https://codecov.io/gh/satwiksps/steadlith/graph/badge.svg)](https://codecov.io/gh/satwiksps/steadlith)
-[![PyPI](https://img.shields.io/pypi/v/steadlith?cacheSeconds=300)](https://pypi.org/project/steadlith/)
-[![Python](https://img.shields.io/pypi/pyversions/steadlith?cacheSeconds=300)](https://pypi.org/project/steadlith/)
-[![License](https://img.shields.io/github/license/satwiksps/steadlith)](LICENSE)
+  <p>
+    <a href="https://steadlith.readthedocs.io/en/latest/">Documentation</a>
+    &middot;
+    <a href="https://steadlith.readthedocs.io/en/latest/getting-started/quickstart/">Quick start</a>
+    &middot;
+    <a href="https://steadlith.readthedocs.io/en/latest/cli/">CLI reference</a>
+    &middot;
+    <a href="https://steadlith.readthedocs.io/en/latest/reference/python-api/">Python API</a>
+    &middot;
+    <a href="https://steadlith.readthedocs.io/en/latest/architecture/">Architecture</a>
+    &middot;
+    <a href="CONTRIBUTING.md">Contributing</a>
+  </p>
 
-> Steadlith reuses unchanged RAG chunks with content-defined identities, cache-aware planning, and transactional indexing.
+  <p>
+    <a href="https://github.com/satwiksps/steadlith/actions/workflows/ci.yml"><img src="https://github.com/satwiksps/steadlith/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+    <a href="https://steadlith.readthedocs.io/en/latest/"><img src="https://readthedocs.org/projects/steadlith/badge/?version=latest" alt="Documentation"></a>
+    <a href="https://codecov.io/gh/satwiksps/steadlith"><img src="https://codecov.io/gh/satwiksps/steadlith/graph/badge.svg" alt="Codecov"></a>
+    <a href="https://pypi.org/project/steadlith/"><img src="https://img.shields.io/pypi/v/steadlith?cacheSeconds=300" alt="PyPI"></a>
+    <a href="https://pypi.org/project/steadlith/"><img src="https://img.shields.io/pypi/pyversions/steadlith?cacheSeconds=300" alt="Python"></a>
+    <a href="LICENSE"><img src="https://img.shields.io/github/license/satwiksps/steadlith" alt="License"></a>
+  </p>
+</div>
 
 Steadlith is for the engineer responsible for a single-host RAG index over frequently edited documentation or source text. It previews and applies incremental SQLite updates so unchanged chunks can reuse cached embeddings.
 

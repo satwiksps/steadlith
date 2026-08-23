@@ -16,12 +16,12 @@ except PackageNotFoundError:
 version = ".".join(release.split(".")[:2])
 
 extensions = [
+    "sphinx_immaterial",
     "myst_parser",
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
-    "sphinx_copybutton",
 ]
 
 source_suffix = {".md": "markdown"}
@@ -43,11 +43,7 @@ autodoc_typehints = "description"
 autodoc_typehints_format = "short"
 autosummary_generate = False
 
-copybutton_prompt_text = r">>> |\.\.\. |\$ |PS> "
-copybutton_prompt_is_regexp = True
-copybutton_only_copy_prompt_lines = True
-
-html_theme = "furo"
+html_theme = "sphinx_immaterial"
 html_title = "Steadlith documentation"
 html_logo = "_static/steadlith-mark.svg"
 html_favicon = "_static/steadlith-mark.svg"
@@ -58,21 +54,48 @@ html_last_updated_fmt = "%Y-%m-%d"
 html_show_sourcelink = True
 
 html_theme_options = {
-    "source_repository": "https://github.com/satwiksps/steadlith/",
-    "source_branch": "main",
-    "source_directory": "docs/",
-    "light_css_variables": {
-        "color-brand-primary": "#176b4a",
-        "color-brand-content": "#176b4a",
-        "color-api-name": "#0f5132",
-    },
-    "dark_css_variables": {
-        "color-brand-primary": "#8ce8b3",
-        "color-brand-content": "#8ce8b3",
-        "color-api-name": "#8ce8b3",
-        "color-background-primary": "#0b0e0c",
-        "color-background-secondary": "#111713",
-    },
+    "site_url": html_baseurl or "https://steadlith.readthedocs.io/en/latest/",
+    "repo_url": "https://github.com/satwiksps/steadlith",
+    "repo_name": "satwiksps/steadlith",
+    "edit_uri": "edit/main/docs/",
+    "font": False,
+    "icon": {"repo": "fontawesome/brands/github"},
+    "toc_title": "On this page",
+    "features": [
+        "content.action.edit",
+        "content.code.copy",
+        "navigation.sections",
+        "navigation.expand",
+        "navigation.top",
+        "navigation.footer",
+        "search.highlight",
+        "search.share",
+        "search.suggest",
+        "toc.follow",
+        "toc.sticky",
+    ],
+    "palette": [
+        {
+            "media": "(prefers-color-scheme: light)",
+            "scheme": "default",
+            "primary": "custom",
+            "accent": "custom",
+            "toggle": {
+                "icon": "material/weather-night",
+                "name": "Use dark mode",
+            },
+        },
+        {
+            "media": "(prefers-color-scheme: dark)",
+            "scheme": "slate",
+            "primary": "custom",
+            "accent": "custom",
+            "toggle": {
+                "icon": "material/weather-sunny",
+                "name": "Use light mode",
+            },
+        },
+    ],
 }
 
 html_context = {

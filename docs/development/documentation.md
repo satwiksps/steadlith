@@ -1,6 +1,6 @@
 # Documentation development
 
-The documentation is Sphinx with MyST Markdown and the Furo theme. Read the Docs builds it from `.readthedocs.yaml` using Python 3.12 and exact documentation dependency pins.
+The documentation is Sphinx with MyST Markdown and the Sphinx-Immaterial theme. Read the Docs builds it from `.readthedocs.yaml` using Python 3.12 and exact documentation dependency pins.
 
 ## Local build
 
