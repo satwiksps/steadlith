@@ -116,7 +116,7 @@ export default function Home() {
           </a>
 
           <div className="hidden items-center gap-7 text-sm text-zinc-400 md:flex">
-            <a className="transition-colors hover:text-white" href="#product">Product</a>
+            <a className="transition-colors hover:text-white" href="#product">How it works</a>
             <a className="transition-colors hover:text-white" href="#capabilities">Capabilities</a>
             <a className="transition-colors hover:text-white" href="#workflow">Workflow</a>
             <a className="transition-colors hover:text-white" href={documentationUrl} {...externalLinkProps}>Docs</a>
@@ -143,15 +143,16 @@ export default function Home() {
           <div className="relative mx-auto max-w-7xl px-5 pb-16 pt-24 sm:px-6 sm:pt-28 lg:px-8 lg:pb-20 lg:pt-32">
             <div className="mx-auto max-w-4xl text-center">
               <p className="mb-5 font-mono text-xs font-medium uppercase tracking-[0.18em] text-emerald-300">
-                Open source, Python 3.10+, offline by default
+                Python CLI + library · local SQLite · offline by default
               </p>
               <h1 className="text-balance text-5xl font-semibold tracking-[-0.045em] text-white sm:text-6xl lg:text-[72px] lg:leading-[1.04]">
                 Index only what changed.
                 <span className="block text-zinc-400">Reuse everything else.</span>
               </h1>
               <p className="mx-auto mt-6 max-w-2xl text-pretty text-base leading-7 text-zinc-400 sm:text-lg sm:leading-8">
-                Steadlith assigns stable identities to content-defined chunks, previews each index
-                change, and reuses cached embeddings before one transactional SQLite update.
+                Steadlith maintains local RAG indexes when source documents change. It gives chunks
+                stable identities, shows a dry-run plan, reuses cached embeddings, then publishes one
+                transactional SQLite update.
               </p>
               <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <a
@@ -177,38 +178,41 @@ export default function Home() {
 
             <div id="product" className="mt-14 scroll-mt-24 lg:mt-16">
               <figure className="overflow-hidden rounded-xl border border-white/10 bg-[#0c0c0f] shadow-[0_32px_100px_rgba(0,0,0,0.55)]">
-                <figcaption className="sr-only">Example Steadlith index plan</figcaption>
+                <figcaption className="sr-only">Illustrative output from the Steadlith plan command</figcaption>
                 <div className="flex h-12 items-center justify-between border-b border-white/[0.07] bg-[#111114] px-4 sm:px-5">
                   <div className="flex min-w-0 items-center gap-3">
                     <span className="grid size-6 shrink-0 place-items-center rounded border border-white/10 bg-white/[0.03] font-mono text-[9px] font-bold text-emerald-300">S</span>
-                    <span className="truncate text-xs font-medium text-zinc-300">Index plan</span>
+                    <span className="truncate text-xs font-medium text-zinc-300">CLI dry run</span>
                     <span className="hidden text-xs text-zinc-400 sm:inline">/</span>
-                    <span className="hidden font-mono text-[11px] text-zinc-400 sm:inline">docs/release-policy.md</span>
+                    <span className="hidden font-mono text-[11px] text-zinc-400 sm:inline">steadlith plan</span>
                   </div>
                   <span className="flex shrink-0 items-center gap-2 font-mono text-[10px] text-emerald-300">
                     <i className="size-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
-                    PLAN READY
+                    NO WRITES
                   </span>
                 </div>
 
                 <div className="grid lg:grid-cols-[minmax(0,1fr)_360px]">
                   <div className="min-w-0">
                     <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-3 sm:px-5">
-                      <span className="font-mono text-[11px] text-zinc-400">manifest diff</span>
-                      <span className="font-mono text-[10px] text-zinc-400">191 chunks</span>
+                      <span className="font-mono text-[11px] text-zinc-400">Index plan</span>
+                      <span className="font-mono text-[10px] text-zinc-400">complete desired corpus</span>
                     </div>
                     <div className="overflow-x-auto py-5 font-mono text-[11px] leading-7 sm:py-7 sm:text-[13px]">
-                      <div className="grid min-w-[590px] grid-cols-[64px_1fr_100px] border-y border-emerald-400/10 bg-emerald-400/[0.04] px-3 text-zinc-300 sm:px-5">
-                        <span className="text-emerald-300">ADD</span><code>release-policy · section 04</code><span className="text-right text-zinc-400">2 chunks</span>
+                      <div className="grid min-w-[540px] grid-cols-[110px_90px_1fr] border-y border-white/[0.06] bg-white/[0.02] px-3 text-[10px] uppercase tracking-wider text-zinc-400 sm:px-5">
+                        <span>Operation</span><span className="text-right">Chunks</span><span className="pl-8">What happens</span>
                       </div>
-                      <div className="grid min-w-[590px] grid-cols-[64px_1fr_100px] px-3 text-zinc-400 sm:px-5">
-                        <span>KEEP</span><code>unchanged content identities</code><span className="text-right">187 chunks</span>
+                      <div className="grid min-w-[540px] grid-cols-[110px_90px_1fr] border-b border-emerald-400/10 bg-emerald-400/[0.04] px-3 text-zinc-300 sm:px-5">
+                        <span className="text-emerald-300">add</span><span className="text-right">2</span><span className="pl-8 text-zinc-400">embed cache misses</span>
                       </div>
-                      <div className="grid min-w-[590px] grid-cols-[64px_1fr_100px] border-y border-blue-400/10 bg-blue-400/[0.035] px-3 text-zinc-300 sm:px-5">
-                        <span className="text-blue-300">MOVE</span><code>operations · backup procedure</code><span className="text-right text-zinc-400">1 chunk</span>
+                      <div className="grid min-w-[540px] grid-cols-[110px_90px_1fr] border-b border-white/[0.04] px-3 text-zinc-400 sm:px-5">
+                        <span>keep</span><span className="text-right">187</span><span className="pl-8">reuse existing identities</span>
                       </div>
-                      <div className="grid min-w-[590px] grid-cols-[64px_1fr_100px] border-b border-amber-400/10 bg-amber-400/[0.04] px-3 text-zinc-300 sm:px-5">
-                        <span className="text-amber-300">DELETE</span><code>legacy deployment note</code><span className="text-right text-zinc-400">1 chunk</span>
+                      <div className="grid min-w-[540px] grid-cols-[110px_90px_1fr] border-b border-blue-400/10 bg-blue-400/[0.035] px-3 text-zinc-300 sm:px-5">
+                        <span className="text-blue-300">move</span><span className="text-right">1</span><span className="pl-8 text-zinc-400">reuse content at a new position</span>
+                      </div>
+                      <div className="grid min-w-[540px] grid-cols-[110px_90px_1fr] border-b border-amber-400/10 bg-amber-400/[0.04] px-3 text-zinc-300 sm:px-5">
+                        <span className="text-amber-300">delete</span><span className="text-right">1</span><span className="pl-8 text-zinc-400">requires explicit approval</span>
                       </div>
                     </div>
                     <div className="border-t border-white/[0.07] bg-black/20 px-4 py-4 font-mono text-[11px] sm:px-5 sm:text-xs">
@@ -221,13 +225,13 @@ export default function Home() {
 
                   <aside className="border-t border-white/[0.07] bg-[#0a0a0d] lg:border-l lg:border-t-0">
                     <div className="flex h-12 items-center justify-between border-b border-white/[0.07] px-5">
-                      <span className="text-xs font-medium text-zinc-300">Plan summary</span>
-                      <span className="grid size-5 place-items-center rounded bg-white/[0.06] font-mono text-[10px] text-zinc-400">4</span>
+                      <span className="text-xs font-medium text-zinc-300">What the plan means</span>
+                      <span className="grid size-5 place-items-center rounded bg-white/[0.06] font-mono text-[10px] text-zinc-400">?</span>
                     </div>
                     <div className="p-5">
                       <div className="font-mono text-[10px] font-semibold uppercase tracking-wider text-emerald-300">Safe preview</div>
-                      <p className="mt-4 text-base font-semibold text-white">Only cache misses need work.</p>
-                      <p className="mt-2 text-sm leading-6 text-zinc-400">Stable chunk identities keep unchanged embeddings reusable across source edits.</p>
+                      <p className="mt-4 text-base font-semibold text-white">Only two chunks need embeddings.</p>
+                      <p className="mt-2 text-sm leading-6 text-zinc-400">The other 188 active chunks keep their identities, so their vectors do not need to be recomputed.</p>
                       <dl className="mt-5 divide-y divide-white/[0.07] border-y border-white/[0.07] text-xs">
                         <div className="flex justify-between py-3"><dt className="text-zinc-400">Embeddings</dt><dd className="font-mono text-zinc-200">2</dd></div>
                         <div className="flex justify-between py-3"><dt className="text-zinc-400">Deletes</dt><dd className="font-mono text-zinc-200">1</dd></div>
@@ -235,7 +239,7 @@ export default function Home() {
                       </dl>
                       <div className="mt-5 border-l-2 border-emerald-400/50 pl-3">
                         <span className="font-mono text-[9px] uppercase tracking-wider text-zinc-400">Next step</span>
-                        <p className="mt-1.5 text-xs leading-5 text-zinc-400">Review the corpus scope, then apply with explicit deletion approval.</p>
+                        <p className="mt-1.5 text-xs leading-5 text-zinc-400">Review the complete corpus scope, then run <code>steadlith index --allow-delete</code> to apply this plan.</p>
                       </div>
                     </div>
                   </aside>
@@ -243,15 +247,16 @@ export default function Home() {
               </figure>
             </div>
 
-            <div className="grid gap-px border-x border-b border-white/[0.07] bg-white/[0.07] sm:grid-cols-2 lg:grid-cols-4">
+            <div aria-label="Steadlith indexing flow" className="grid gap-px border-x border-b border-white/[0.07] bg-white/[0.07] sm:grid-cols-2 lg:grid-cols-5">
               {[
-                ["Content-defined", "stable chunk identities"],
-                ["Offline", "no network by default"],
-                ["Transactional", "one SQLite commit"],
-                ["Verifiable", "manifests + Merkle roots"],
-              ].map(([label, detail]) => (
+                ["01 · Sources", "Markdown and text files"],
+                ["02 · Chunk", "stable content identities"],
+                ["03 · Plan", "add, keep, move, delete"],
+                ["04 · Embed", "reuse cached vectors"],
+                ["05 · Publish", "one SQLite transaction"],
+              ].map(([label, detail], index) => (
                 <div className="bg-[#0b0b0e] px-5 py-4" key={label}>
-                  <strong className="block text-xs font-medium text-zinc-200">{label}</strong>
+                  <strong className="flex items-center justify-between text-xs font-medium text-zinc-200">{label}{index < 4 ? <span className="text-zinc-700" aria-hidden="true">→</span> : null}</strong>
                   <span className="mt-1 block font-mono text-[10px] text-zinc-400">{detail}</span>
                 </div>
               ))}

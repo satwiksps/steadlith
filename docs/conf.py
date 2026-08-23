@@ -45,7 +45,6 @@ autosummary_generate = False
 
 html_theme = "sphinx_immaterial"
 html_title = "Steadlith"
-html_logo = "_static/steadlith-mark.svg"
 html_favicon = "_static/steadlith-mark.svg"
 html_static_path = ["_static"]
 html_css_files = ["custom.css"]

@@ -2,7 +2,9 @@
 
 **Content-defined chunk identities, cache-aware planning, and transactional indexing for RAG corpora that change.**
 
-Steadlith is an incremental indexing toolkit for retrieval-augmented generation systems. It assigns content-defined identities to chunks, reuses cached embeddings, previews index changes, and publishes each SQLite index update as one transaction.
+Steadlith is a Python CLI and library for maintaining local retrieval indexes when source documents change. It assigns content-defined identities to chunks, previews each change, reuses cached embeddings, and publishes the resulting SQLite index update as one transaction.
+
+Use Steadlith when a document corpus changes a little at a time and rebuilding every embedding would repeat work. It is not a RAG framework or a remote vector database.
 
 ```{raw} html
 <p>
@@ -16,6 +18,8 @@ python -m pip install steadlith
 steadlith init
 steadlith plan
 ```
+
+The core workflow is: source files → stable chunk identities → a read-only plan → cached or new embeddings → one transactional SQLite update. Start with `steadlith plan`; it does not contact an embedding provider or write index state.
 
 ## What Steadlith provides
 

@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { documentationUrl, repositoryUrl } from "@/lib/site";
 
 const links = [
-  ["Product", "#product"],
+  ["How it works", "#product"],
   ["Capabilities", "#capabilities"],
   ["Workflow", "#workflow"],
   ["Architecture", "#architecture"],

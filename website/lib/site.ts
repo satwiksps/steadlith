@@ -45,5 +45,5 @@ export const site = {
   name: "Steadlith",
   title: "Steadlith",
   description:
-    "Content-defined chunk identities, cache-aware planning, and transactional indexing for RAG corpora that change.",
+    "A Python CLI and library that reuses unchanged embeddings when local RAG corpora change.",
 } as const;

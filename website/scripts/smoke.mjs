@@ -97,6 +97,9 @@ try {
     "home page heading",
   );
   requireMatch(homeBody, /<main id="main">/, "home page main landmark");
+  requireMatch(homeBody, /Python CLI \+ library/, "product type");
+  requireMatch(homeBody, /What the plan means/, "plan explanation");
+  requireMatch(homeBody, /Steadlith indexing flow/, "indexing flow");
   if (home.headers.get("x-content-type-options") !== "nosniff") {
     throw new Error("home page is missing the configured X-Content-Type-Options header");
   }

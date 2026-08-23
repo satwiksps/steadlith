@@ -26,6 +26,27 @@ body {
   box-shadow: none;
 }
 
+.md-header__button.md-logo {
+  display: inline-flex;
+  align-items: center;
+  width: auto;
+  margin: 0 0.8rem 0 0;
+  padding: 0.2rem 0;
+  color: var(--md-primary-bg-color);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+
+.md-header__button.md-logo::after {
+  content: "Steadlith";
+}
+
+.md-header__button.md-logo svg,
+.md-header__title {
+  display: none;
+}
+
 .md-typeset h1,
 .md-typeset h2,
 .md-typeset h3 {
