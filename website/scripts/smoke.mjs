@@ -93,10 +93,10 @@ try {
   requireMatch(homeBody, /<title>Steadlith<\/title>/, "home page title");
   requireMatch(
     homeBody,
-    /<h1>Incremental indexing for RAG corpora that change\.<\/h1>/,
+    /<h1[^>]*>[\s\S]*Index only what changed\.[\s\S]*Reuse everything else\.[\s\S]*<\/h1>/,
     "home page heading",
   );
-  requireMatch(homeBody, /id="main-content"/, "home page main landmark");
+  requireMatch(homeBody, /<main id="main">/, "home page main landmark");
   if (home.headers.get("x-content-type-options") !== "nosniff") {
     throw new Error("home page is missing the configured X-Content-Type-Options header");
   }

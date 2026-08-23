@@ -1,370 +1,404 @@
-import Link from "next/link";
-
-import {
-  CheckIcon,
-  GitHubIcon,
-  ShieldIcon,
-  SteadlithMark,
-} from "@/components/icons";
-import { SiteHeader } from "@/components/site-header";
-import { TerminalWindow } from "@/components/terminal-window";
+import { CopyButton } from "@/components/copy-button";
+import { MobileMenu } from "@/components/mobile-menu";
+import { SteadlithMark } from "@/components/icons";
 import { documentationUrl, packageUrl, repositoryUrl } from "@/lib/site";
+import packageMetadata from "../package.json";
+
+const releaseVersion = packageMetadata.version;
 
 const capabilities = [
   {
-    number: "01",
-    title: "Content-defined identities",
-    body: "Versioned hashes separate canonical chunk content from source offsets and embedding-model identity.",
+    stage: "Identity",
+    mechanism: "Content-defined chunks",
+    behavior: "Normalize words, place Rabin boundaries, and hash canonical content with versioned parameters.",
+    default: "Deterministic",
   },
   {
-    number: "02",
-    title: "Cache-aware planning",
-    body: "Preview add, keep, move, and delete operations without writing state or calling a provider.",
+    stage: "Plan",
+    mechanism: "Manifest diff",
+    behavior: "Classify add, keep, move, and delete operations before any provider call or state write.",
+    default: "Read only",
   },
   {
-    number: "03",
-    title: "Transactional indexing",
-    body: "Apply one validated SQLite snapshot. Removed occurrences become inactive tombstones immediately.",
+    stage: "Cache",
+    mechanism: "Content-addressed embeddings",
+    behavior: "Reuse vectors by chunk, provider, model, and embedding parameters.",
+    default: "Local SQLite",
   },
   {
-    number: "04",
-    title: "Verifiable state",
-    body: "Manifests, Merkle roots, generation checks, and record digests make committed state explicit.",
+    stage: "Apply",
+    mechanism: "Transactional publication",
+    behavior: "Reject stale plans, tombstone removals, and publish one validated index generation.",
+    default: "Explicit approval",
+  },
+  {
+    stage: "Verify",
+    mechanism: "Manifest and index checks",
+    behavior: "Compare generations, record digests, active rows, and Merkle roots.",
+    default: "Offline",
+  },
+  {
+    stage: "Query",
+    mechanism: "Pluggable embeddings",
+    behavior: "Use deterministic lexical retrieval or an explicitly selected learned provider.",
+    default: "No credentials",
+  },
+] as const;
+
+const workflows = [
+  {
+    name: "Plan",
+    title: "Inspect the complete delta",
+    description: "Resolve the desired corpus and price only known cache misses without changing state.",
+    file: "terminal",
+    command: "steadlith plan",
+  },
+  {
+    name: "Apply",
+    title: "Publish one generation",
+    description: "Reuse cached vectors, embed misses, and approve destructive operations explicitly.",
+    file: "terminal",
+    command: "steadlith index --allow-delete",
+  },
+  {
+    name: "Verify",
+    title: "Check committed state",
+    description: "Confirm that the active index, manifest, generation, and record digests agree.",
+    file: "terminal",
+    command: "steadlith verify",
   },
 ] as const;
 
 const architectureSteps = [
-  ["01", "Chunk", "Normalize words and select rolling Rabin fingerprint boundaries."],
-  ["02", "Identify", "Hash canonical content with versioned normalization and chunking parameters."],
-  ["03", "Plan", "Compare manifests and price only known embedding cache misses."],
-  ["04", "Apply", "Reuse vectors, embed misses, tombstone removals, and commit atomically."],
+  ["01", "Chunk", "Normalize words and place content-defined Rabin boundaries."],
+  ["02", "Identify", "Hash canonical content with the versioned chunking recipe."],
+  ["03", "Plan", "Compare manifests and resolve reusable embedding identities."],
+  ["04", "Publish", "Apply one transaction, tombstone removals, and verify state."],
 ] as const;
 
-const safeguards = [
-  ["Network access", "Optional providers require --allow-network."],
-  ["Deletion", "Deleting plans require --allow-delete; emptying an index also requires --allow-empty."],
-  ["Source scope", "Paths and resolved symlinks must stay inside the configuration directory."],
-  ["Imported state", "Unsigned cache imports require --trust-source; compaction supports dry run."],
-] as const;
+const installCommand = [
+  "python -m pip install steadlith",
+  "steadlith init",
+  "steadlith plan",
+].join("\n");
 
-const support = [
-  ["Index", "Transactional SQLite, one logical index per database"],
-  ["Embeddings", "Offline lexical, optional OpenAI and sentence-transformers"],
-  ["Chunking", "Rabin CDC, opt-in snapping, comparison strategies"],
-  ["State", "Cache, manifests, Merkle roots, tombstones, verification"],
-  ["Measurement", "Published five-corpus churn and retrieval regressions"],
-  ["Output", "Human-readable terminal tables and machine-readable JSON"],
-] as const;
+const quickStartUrl = `${documentationUrl}getting-started/quickstart/`;
+const architectureUrl = `${documentationUrl}architecture/`;
+const apiUrl = `${documentationUrl}reference/python-api/`;
+const repositoryBaseUrl = repositoryUrl?.replace(/\/$/, "");
+const securityUrl = repositoryBaseUrl ? `${repositoryBaseUrl}/blob/main/SECURITY.md` : undefined;
+const contributingUrl = repositoryBaseUrl
+  ? `${repositoryBaseUrl}/blob/main/CONTRIBUTING.md`
+  : undefined;
 
 export default function Home() {
+  const externalLinkProps = {
+    target: "_blank" as const,
+    rel: "noreferrer",
+  };
+
   return (
-    <div id="top" className="min-h-screen overflow-hidden">
-      <a href="#main-content" className="skip-link">
+    <div className="min-h-screen overflow-x-hidden bg-[#09090b] text-zinc-100">
+      <a
+        className="fixed left-4 top-4 z-[100] -translate-y-24 rounded-md bg-white px-4 py-2 text-sm font-semibold text-zinc-950 transition-transform focus:translate-y-0"
+        href="#main"
+      >
         Skip to content
       </a>
-      <SiteHeader />
 
-      <main id="main-content">
-        <section className="hero-section shell">
-          <div className="hero-grid">
-            <div className="hero-copy">
-              <div className="eyebrow">
-                <span className="eyebrow-mark" /> Open source. Apache-2.0. Python 3.10+.
-              </div>
-              <h1>Incremental indexing for RAG corpora that change.</h1>
-              <p className="hero-lede">
-                Steadlith combines content-defined chunk identities, cache-aware planning, and
-                transactional updates so every revision becomes an explicit, inspectable index
-                operation.
+      <header className="sticky top-0 z-50 border-b border-white/[0.07] bg-[#09090b]/90 backdrop-blur-xl">
+        <nav
+          className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-6 lg:px-8"
+          aria-label="Main navigation"
+        >
+          <a className="font-semibold tracking-tight" href="#top">
+            Steadlith
+          </a>
+
+          <div className="hidden items-center gap-7 text-sm text-zinc-400 md:flex">
+            <a className="transition-colors hover:text-white" href="#product">Product</a>
+            <a className="transition-colors hover:text-white" href="#capabilities">Capabilities</a>
+            <a className="transition-colors hover:text-white" href="#workflow">Workflow</a>
+            <a className="transition-colors hover:text-white" href={documentationUrl} {...externalLinkProps}>Docs</a>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {repositoryUrl ? (
+              <a
+                className="hidden h-9 items-center rounded-md border border-white/10 bg-white/[0.035] px-3.5 text-sm font-medium text-zinc-200 transition-colors hover:border-white/20 hover:bg-white/[0.07] sm:inline-flex"
+                href={repositoryUrl}
+                {...externalLinkProps}
+              >
+                GitHub
+              </a>
+            ) : null}
+            <MobileMenu />
+          </div>
+        </nav>
+      </header>
+
+      <main id="main">
+        <section id="top" className="relative">
+          <div className="hero-grid absolute inset-x-0 top-0 h-[720px] opacity-60" aria-hidden="true" />
+          <div className="relative mx-auto max-w-7xl px-5 pb-16 pt-24 sm:px-6 sm:pt-28 lg:px-8 lg:pb-20 lg:pt-32">
+            <div className="mx-auto max-w-4xl text-center">
+              <p className="mb-5 font-mono text-xs font-medium uppercase tracking-[0.18em] text-emerald-300">
+                Open source, Python 3.10+, offline by default
               </p>
-              <div className="hero-actions">
-                <Link href="#quickstart" className="primary-button">
-                  Read the quick start
-                </Link>
-                <Link href="#architecture" className="secondary-button">
-                  See the architecture
-                </Link>
-              </div>
-              <div className="install-line" aria-label="Installation command">
-                <span className="prompt">$</span>
-                <code>python -m pip install steadlith</code>
-              </div>
-              <p className="release-note">
-                Install the current release from{" "}
-                <a href={packageUrl} target="_blank" rel="noopener noreferrer">
-                  PyPI
+              <h1 className="text-balance text-5xl font-semibold tracking-[-0.045em] text-white sm:text-6xl lg:text-[72px] lg:leading-[1.04]">
+                Index only what changed.
+                <span className="block text-zinc-400">Reuse everything else.</span>
+              </h1>
+              <p className="mx-auto mt-6 max-w-2xl text-pretty text-base leading-7 text-zinc-400 sm:text-lg sm:leading-8">
+                Steadlith assigns stable identities to content-defined chunks, previews each index
+                change, and reuses cached embeddings before one transactional SQLite update.
+              </p>
+              <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                <a
+                  className="inline-flex h-11 w-full items-center justify-center rounded-md bg-white px-5 text-sm font-semibold text-zinc-950 transition-colors hover:bg-zinc-200 sm:w-auto"
+                  href="#get-started"
+                >
+                  Get started
                 </a>
-                .
+                {repositoryUrl ? (
+                  <a
+                    className="inline-flex h-11 w-full items-center justify-center rounded-md border border-white/12 bg-white/[0.035] px-5 text-sm font-medium text-zinc-200 transition-colors hover:border-white/20 hover:bg-white/[0.07] sm:w-auto"
+                    href={repositoryUrl}
+                    {...externalLinkProps}
+                  >
+                    View source
+                  </a>
+                ) : null}
+              </div>
+              <p className="mt-5 text-sm text-zinc-400">
+                Plan first. No network or index write unless you explicitly allow it.
               </p>
             </div>
 
-            <TerminalWindow />
-          </div>
-
-          <div className="principle-strip" aria-label="Project principles">
-            <span>Rabin CDC</span>
-            <span>Dry-run planning</span>
-            <span>Transactional SQLite</span>
-            <span>Offline by default</span>
-          </div>
-        </section>
-
-        <section id="why" className="section shell scroll-mt-24">
-          <div className="section-intro section-intro-wide">
-            <p className="section-label">WHY STEADLITH</p>
-            <h2>A small edit should be visible as a small change plan.</h2>
-            <p>
-              Offset-based chunking can shift downstream boundaries after an early insertion,
-              changing hashes for content that is otherwise unchanged. Steadlith places candidate
-              boundaries from a rolling fingerprint over normalized words, then compares
-              versioned manifests to classify what changed.
-            </p>
-          </div>
-
-          <div className="positioning-line">
-            <span className="positioning-rule" aria-hidden="true" />
-            <p>
-              A focused indexing layer, not another RAG framework. Steadlith sits below
-              orchestration libraries and above embedding and vector providers.
-            </p>
-          </div>
-
-          <div className="capability-grid">
-            {capabilities.map((capability) => (
-              <article key={capability.number} className="capability-card">
-                <span className="card-number">{capability.number}</span>
-                <h3>{capability.title}</h3>
-                <p>{capability.body}</p>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section id="architecture" className="section section-bordered scroll-mt-16">
-          <div className="shell">
-            <div className="section-intro">
-              <p className="section-label">ARCHITECTURE</p>
-              <h2>A pure core. Effects at the edge.</h2>
-              <p>
-                Chunking and content identity stay deterministic. Files, credentials, providers,
-                and databases enter only through explicit application boundaries.
-              </p>
-            </div>
-
-            <div className="architecture-flow" aria-label="Steadlith indexing architecture">
-              <div className="flow-node">
-                <span>Input</span>
-                <strong>Source text</strong>
-              </div>
-              <div className="flow-connector" aria-hidden="true" />
-              <div className="flow-node">
-                <span>Pure core</span>
-                <strong>Chunk + identify</strong>
-              </div>
-              <div className="flow-connector" aria-hidden="true" />
-              <div className="flow-node">
-                <span>State diff</span>
-                <strong>Manifest plan</strong>
-              </div>
-              <div className="flow-connector" aria-hidden="true" />
-              <div className="flow-node flow-node-accent">
-                <span>Effects</span>
-                <strong>Cache + index</strong>
-              </div>
-            </div>
-
-            <div className="architecture-steps">
-              {architectureSteps.map(([number, title, body]) => (
-                <article key={number}>
-                  <span>{number}</span>
-                  <h3>{title}</h3>
-                  <p>{body}</p>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section id="quickstart" className="section shell scroll-mt-20">
-          <div className="quickstart-grid">
-            <div className="section-intro">
-              <p className="section-label">CLI WORKFLOW</p>
-              <h2>Start offline. Inspect every transition.</h2>
-              <p>
-                The starter config uses deterministic local lexical embeddings, so indexing and
-                keyword retrieval work without credentials or network access.
-              </p>
-              <div className="inline-note">
-                Select a learned provider when queries require semantic similarity or synonyms.
-              </div>
-            </div>
-
-            <div className="code-panel" aria-label="Steadlith quick start commands">
-              <div className="code-panel-header">
-                <span>quick-start.sh</span>
-                <span>offline</span>
-              </div>
-              <pre>
-                <code>
-                  <span className="code-muted"># create a disposable project</span>{"\n"}
-                  <span className="code-command">mkdir steadlith-demo</span>{"\n"}
-                  <span className="code-command">cd steadlith-demo</span>{"\n"}
-                  <span className="code-command">steadlith init</span>{"\n"}
-                  <span className="code-command">
-                    {
-                      "python -c \"from pathlib import Path; Path('docs').mkdir(exist_ok=True); Path('docs/example.md').write_text('# Notes\\n\\nRelease policy keeps changes reviewable.\\n', encoding='utf-8')\""
-                    }
-                  </span>{"\n\n"}
-                  <span className="code-muted"># inspect before any write</span>{"\n"}
-                  <span className="code-command">steadlith plan</span>{"\n\n"}
-                  <span className="code-command">steadlith index</span>{"\n"}
-                  <span className="code-command">steadlith status</span>{"\n"}
-                  <span className="code-command">steadlith query &quot;release policy&quot;</span>{"\n"}
-                  <span className="code-command">steadlith verify</span>
-                </code>
-              </pre>
-            </div>
-          </div>
-
-          <div className="scope-note">
-            <ShieldIcon className="h-5 w-5 shrink-0 text-[var(--accent)]" />
-            <p>
-              Positional paths describe the complete desired corpus, not additions. Prefer
-              committed source globs and inspect the plan before applying changes.
-            </p>
-          </div>
-        </section>
-
-        <section className="section section-bordered">
-          <div className="shell safeguards-grid">
-            <div className="section-intro">
-              <p className="section-label">OPERATIONAL SAFETY</p>
-              <h2>Destructive and networked work stays explicit.</h2>
-              <p>
-                <code>plan</code> is the safe entry point: it makes no writes and sends no content
-                to an embedding provider.
-              </p>
-            </div>
-
-            <div className="safeguard-list">
-              {safeguards.map(([title, body]) => (
-                <div className="safeguard-row" key={title}>
-                  <CheckIcon className="mt-0.5 h-4 w-4 shrink-0 text-[var(--accent)]" />
-                  <div>
-                    <h3>{title}</h3>
-                    <p>{body}</p>
+            <div id="product" className="mt-14 scroll-mt-24 lg:mt-16">
+              <figure className="overflow-hidden rounded-xl border border-white/10 bg-[#0c0c0f] shadow-[0_32px_100px_rgba(0,0,0,0.55)]">
+                <figcaption className="sr-only">Example Steadlith index plan</figcaption>
+                <div className="flex h-12 items-center justify-between border-b border-white/[0.07] bg-[#111114] px-4 sm:px-5">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="grid size-6 shrink-0 place-items-center rounded border border-white/10 bg-white/[0.03] font-mono text-[9px] font-bold text-emerald-300">S</span>
+                    <span className="truncate text-xs font-medium text-zinc-300">Index plan</span>
+                    <span className="hidden text-xs text-zinc-400 sm:inline">/</span>
+                    <span className="hidden font-mono text-[11px] text-zinc-400 sm:inline">docs/release-policy.md</span>
                   </div>
+                  <span className="flex shrink-0 items-center gap-2 font-mono text-[10px] text-emerald-300">
+                    <i className="size-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
+                    PLAN READY
+                  </span>
+                </div>
+
+                <div className="grid lg:grid-cols-[minmax(0,1fr)_360px]">
+                  <div className="min-w-0">
+                    <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-3 sm:px-5">
+                      <span className="font-mono text-[11px] text-zinc-400">manifest diff</span>
+                      <span className="font-mono text-[10px] text-zinc-400">191 chunks</span>
+                    </div>
+                    <div className="overflow-x-auto py-5 font-mono text-[11px] leading-7 sm:py-7 sm:text-[13px]">
+                      <div className="grid min-w-[590px] grid-cols-[64px_1fr_100px] border-y border-emerald-400/10 bg-emerald-400/[0.04] px-3 text-zinc-300 sm:px-5">
+                        <span className="text-emerald-300">ADD</span><code>release-policy · section 04</code><span className="text-right text-zinc-400">2 chunks</span>
+                      </div>
+                      <div className="grid min-w-[590px] grid-cols-[64px_1fr_100px] px-3 text-zinc-400 sm:px-5">
+                        <span>KEEP</span><code>unchanged content identities</code><span className="text-right">187 chunks</span>
+                      </div>
+                      <div className="grid min-w-[590px] grid-cols-[64px_1fr_100px] border-y border-blue-400/10 bg-blue-400/[0.035] px-3 text-zinc-300 sm:px-5">
+                        <span className="text-blue-300">MOVE</span><code>operations · backup procedure</code><span className="text-right text-zinc-400">1 chunk</span>
+                      </div>
+                      <div className="grid min-w-[590px] grid-cols-[64px_1fr_100px] border-b border-amber-400/10 bg-amber-400/[0.04] px-3 text-zinc-300 sm:px-5">
+                        <span className="text-amber-300">DELETE</span><code>legacy deployment note</code><span className="text-right text-zinc-400">1 chunk</span>
+                      </div>
+                    </div>
+                    <div className="border-t border-white/[0.07] bg-black/20 px-4 py-4 font-mono text-[11px] sm:px-5 sm:text-xs">
+                      <div className="flex gap-3"><span className="select-none text-emerald-300">$</span><code className="text-zinc-300">steadlith plan</code></div>
+                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-zinc-400">
+                        <span><b className="font-medium text-emerald-300">2 embeddings</b> needed</span><span>no writes</span><span>no network</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <aside className="border-t border-white/[0.07] bg-[#0a0a0d] lg:border-l lg:border-t-0">
+                    <div className="flex h-12 items-center justify-between border-b border-white/[0.07] px-5">
+                      <span className="text-xs font-medium text-zinc-300">Plan summary</span>
+                      <span className="grid size-5 place-items-center rounded bg-white/[0.06] font-mono text-[10px] text-zinc-400">4</span>
+                    </div>
+                    <div className="p-5">
+                      <div className="font-mono text-[10px] font-semibold uppercase tracking-wider text-emerald-300">Safe preview</div>
+                      <p className="mt-4 text-base font-semibold text-white">Only cache misses need work.</p>
+                      <p className="mt-2 text-sm leading-6 text-zinc-400">Stable chunk identities keep unchanged embeddings reusable across source edits.</p>
+                      <dl className="mt-5 divide-y divide-white/[0.07] border-y border-white/[0.07] text-xs">
+                        <div className="flex justify-between py-3"><dt className="text-zinc-400">Embeddings</dt><dd className="font-mono text-zinc-200">2</dd></div>
+                        <div className="flex justify-between py-3"><dt className="text-zinc-400">Deletes</dt><dd className="font-mono text-zinc-200">1</dd></div>
+                        <div className="flex justify-between py-3"><dt className="text-zinc-400">Index writes</dt><dd className="font-mono text-zinc-200">0</dd></div>
+                      </dl>
+                      <div className="mt-5 border-l-2 border-emerald-400/50 pl-3">
+                        <span className="font-mono text-[9px] uppercase tracking-wider text-zinc-400">Next step</span>
+                        <p className="mt-1.5 text-xs leading-5 text-zinc-400">Review the corpus scope, then apply with explicit deletion approval.</p>
+                      </div>
+                    </div>
+                  </aside>
+                </div>
+              </figure>
+            </div>
+
+            <div className="grid gap-px border-x border-b border-white/[0.07] bg-white/[0.07] sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                ["Content-defined", "stable chunk identities"],
+                ["Offline", "no network by default"],
+                ["Transactional", "one SQLite commit"],
+                ["Verifiable", "manifests + Merkle roots"],
+              ].map(([label, detail]) => (
+                <div className="bg-[#0b0b0e] px-5 py-4" key={label}>
+                  <strong className="block text-xs font-medium text-zinc-200">{label}</strong>
+                  <span className="mt-1 block font-mono text-[10px] text-zinc-400">{detail}</span>
                 </div>
               ))}
             </div>
           </div>
         </section>
 
-        <section className="section shell">
-          <div className="section-intro section-intro-wide">
-            <p className="section-label">CURRENT SUPPORT</p>
-            <h2>A deliberately narrow supported core.</h2>
-            <p>
-              The repository tests the local SQLite path. No additional vector backend is
-              implemented or supported.
-            </p>
-          </div>
-
-          <dl className="support-table" aria-label="Current Steadlith support">
-            {support.map(([component, detail]) => (
-              <div className="support-row" key={component}>
-                <dt className="support-component">{component}</dt>
-                <dd className="support-detail">{detail}</dd>
-              </div>
-            ))}
-          </dl>
-        </section>
-
-        <section id="limitations" className="section limitation-section scroll-mt-16">
-          <div className="shell limitation-grid">
+        <section className="border-y border-white/[0.07] bg-white/[0.012]">
+          <div className="mx-auto grid max-w-7xl gap-12 px-5 py-20 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:gap-24 lg:px-8 lg:py-28">
             <div>
-              <p className="section-label section-label-warm">HONEST LIMITATIONS</p>
-              <h2>Limits stay explicit.</h2>
+              <p className="font-mono text-xs font-medium uppercase tracking-[0.16em] text-emerald-300">The cost of unstable boundaries</p>
+              <h2 className="mt-4 max-w-xl text-3xl font-semibold tracking-[-0.035em] text-white sm:text-4xl">A small edit should not force a full re-index.</h2>
             </div>
-            <div className="limitation-copy">
-              <p className="limitation-lede">
-                TTTD v1 is regression-tested for churn, but it does not claim a universal
-                fixed-distance locality proof.
-              </p>
-              <p>
-                The stateful fallback can remain out of phase until a common primary boundary.
-                Steadlith keeps the counterexample as a regression and reports measured churn
-                instead of turning an empirical result into a theorem.
-              </p>
-              <p>
-                Across the bundled five-corpus benchmark, default CDC re-embeds 32.7% of revised
-                chunks versus 53.3% for fixed chunking, with recall@5 of 1.0 under both offline
-                scorers. Structural snapping remains opt-in and requires project-specific review.
-              </p>
+            <div className="space-y-8 text-base leading-7 text-zinc-400">
+              <p>Offset-based chunking can shift every downstream boundary after an early insertion. The text may be unchanged while its chunk hashes and embeddings are not.</p>
+              <dl className="divide-y divide-white/[0.07] border-y border-white/[0.07]">
+                <div className="grid gap-2 py-4 sm:grid-cols-[150px_1fr]"><dt className="text-sm font-medium text-zinc-200">Offset chunks</dt><dd className="text-sm text-zinc-400">Where does this fixed window begin now?</dd></div>
+                <div className="grid gap-2 py-4 sm:grid-cols-[150px_1fr]"><dt className="text-sm font-medium text-zinc-200">Steadlith</dt><dd className="text-sm text-zinc-400">Which content identities actually changed?</dd></div>
+              </dl>
+              <p className="text-sm text-zinc-400">Steadlith reports a concrete manifest delta. It does not promise that every edit changes only a fixed number of chunks.</p>
             </div>
           </div>
         </section>
 
-        <section id="open-source" className="final-section shell">
-          <SteadlithMark className="mx-auto h-10 w-10 text-[var(--accent)]" />
-          <p className="section-label mt-7">APACHE-2.0 OPEN SOURCE</p>
-          <h2>Evaluate Steadlith on your corpus.</h2>
-          <p>
-            Start offline, inspect the delta, then measure churn and retrieval quality before
-            connecting a paid provider.
-          </p>
-          <div className="final-actions">
-            <a
-              href={documentationUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="primary-button"
-            >
-              Read the documentation
-            </a>
-            {repositoryUrl ? (
-              <a
-                href={repositoryUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="secondary-button"
-              >
-                <GitHubIcon className="h-4 w-4" /> View on GitHub
-              </a>
-            ) : null}
-            <a
-              href={packageUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="secondary-button"
-            >
-              View on PyPI
-            </a>
+        <section id="capabilities" className="scroll-mt-24">
+          <div className="mx-auto max-w-7xl px-5 py-20 sm:px-6 lg:px-8 lg:py-28">
+            <div className="grid gap-6 lg:grid-cols-[1fr_420px] lg:items-end">
+              <div>
+                <p className="font-mono text-xs font-medium uppercase tracking-[0.16em] text-emerald-300">One explicit state model</p>
+                <h2 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white sm:text-4xl">Every transition stays inspectable.</h2>
+              </div>
+              <p className="text-sm leading-6 text-zinc-400">Chunk identity, cache identity, manifest state, and index publication remain separate so the plan can explain what will happen before it happens.</p>
+            </div>
+
+            <div className="mt-10 overflow-hidden rounded-lg border border-white/[0.08]">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[820px] border-collapse text-left">
+                  <thead className="bg-white/[0.025] font-mono text-[10px] uppercase tracking-[0.12em] text-zinc-400">
+                    <tr><th className="px-5 py-3 font-medium">Stage</th><th className="px-5 py-3 font-medium">Mechanism</th><th className="px-5 py-3 font-medium">Observable behavior</th><th className="px-5 py-3 font-medium">Default</th></tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/[0.06] text-sm">
+                    {capabilities.map((capability) => (
+                      <tr className="bg-[#0b0b0e] transition-colors hover:bg-white/[0.025]" key={capability.stage}>
+                        <td className="px-5 py-4 font-mono text-[11px] font-semibold text-emerald-300">{capability.stage}</td>
+                        <td className="px-5 py-4 font-medium text-zinc-200">{capability.mechanism}</td>
+                        <td className="max-w-xl px-5 py-4 text-xs leading-5 text-zinc-400">{capability.behavior}</td>
+                        <td className="px-5 py-4 font-mono text-[10px] text-zinc-400">{capability.default}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <a className="mt-5 inline-flex text-xs font-medium text-zinc-400 underline decoration-white/20 underline-offset-4 hover:text-white" href={documentationUrl} {...externalLinkProps}>Read the complete documentation</a>
+          </div>
+        </section>
+
+        <section id="workflow" className="scroll-mt-24 border-y border-white/[0.07] bg-white/[0.012]">
+          <div className="mx-auto max-w-7xl px-5 py-20 sm:px-6 lg:px-8 lg:py-28">
+            <div className="max-w-2xl">
+              <p className="font-mono text-xs font-medium uppercase tracking-[0.16em] text-emerald-300">One workflow, three explicit stages</p>
+              <h2 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white sm:text-4xl">Plan before writing. Verify after.</h2>
+              <p className="mt-4 text-sm leading-6 text-zinc-400">The CLI exposes the same planner and index service available from the Python API.</p>
+            </div>
+
+            <div className="mt-10 grid gap-4 lg:grid-cols-3">
+              {workflows.map((workflow) => (
+                <article className="flex min-h-64 flex-col rounded-lg border border-white/[0.08] bg-[#0b0b0e] p-5" key={workflow.name}>
+                  <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-emerald-300">{workflow.name}</span>
+                  <h3 className="mt-3 text-base font-semibold text-zinc-100">{workflow.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-zinc-400">{workflow.description}</p>
+                  <div className="mt-auto overflow-hidden rounded-md border border-white/[0.07] bg-black/25">
+                    <div className="flex h-10 items-center justify-between border-b border-white/[0.06] px-3"><span className="font-mono text-[9px] text-zinc-400">{workflow.file}</span><CopyButton value={workflow.command} label={`Copy ${workflow.name} command`} /></div>
+                    <pre className="overflow-x-auto p-3 font-mono text-[11px] leading-5 text-zinc-300"><code>{workflow.command}</code></pre>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="architecture" className="scroll-mt-24">
+          <div className="mx-auto max-w-7xl px-5 py-20 sm:px-6 lg:px-8 lg:py-28">
+            <div className="grid gap-12 lg:grid-cols-[0.82fr_1.18fr] lg:gap-24">
+              <div>
+                <p className="font-mono text-xs font-medium uppercase tracking-[0.16em] text-emerald-300">Small, explicit trust boundary</p>
+                <h2 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white sm:text-4xl">Pure identities. Effects at the edge.</h2>
+                <p className="mt-4 text-sm leading-6 text-zinc-400">Chunking and planning stay deterministic. Files, credentials, providers, and SQLite enter through explicit application boundaries.</p>
+                <a className="mt-5 inline-flex text-xs font-medium text-zinc-400 underline decoration-white/20 underline-offset-4 hover:text-white" href={architectureUrl} {...externalLinkProps}>Read the architecture</a>
+              </div>
+              <ol className="grid gap-px overflow-hidden rounded-lg border border-white/[0.08] bg-white/[0.08] sm:grid-cols-2">
+                {architectureSteps.map(([number, title, description]) => (
+                  <li className="bg-[#0b0b0e] p-5" key={number}>
+                    <span className="font-mono text-[10px] text-emerald-300">{number}</span>
+                    <h3 className="mt-5 text-sm font-semibold text-zinc-200">{title}</h3>
+                    <p className="mt-2 text-xs leading-5 text-zinc-400">{description}</p>
+                  </li>
+                ))}
+              </ol>
+            </div>
+            <div className="mt-8 flex flex-wrap gap-2 font-mono text-[10px] uppercase tracking-wider text-zinc-400">
+              {["No network by default", "No implicit deletions", "No silent migrations", "No remote backend claim"].map((item) => <span className="rounded border border-white/[0.08] bg-white/[0.02] px-3 py-2" key={item}>{item}</span>)}
+            </div>
+          </div>
+        </section>
+
+        <section id="get-started" className="scroll-mt-24 border-t border-white/[0.07]">
+          <div className="mx-auto max-w-7xl px-5 py-20 sm:px-6 lg:px-8 lg:py-28">
+            <div className="grid gap-12 lg:grid-cols-[0.85fr_1.15fr] lg:items-center lg:gap-24">
+              <div>
+                <p className="font-mono text-xs font-medium uppercase tracking-[0.16em] text-emerald-300">Install the release</p>
+                <h2 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white sm:text-4xl">Evaluate Steadlith on a real corpus.</h2>
+                <p className="mt-4 text-sm leading-6 text-zinc-400">Install v{releaseVersion}, start with the offline provider, inspect the plan, and measure churn before connecting a paid embedding service.</p>
+                <a className="mt-5 inline-flex text-xs font-medium text-zinc-400 underline decoration-white/20 underline-offset-4 hover:text-white" href={quickStartUrl} {...externalLinkProps}>Open the quick start</a>
+              </div>
+              <div className="overflow-hidden rounded-lg border border-white/[0.08] bg-[#0b0b0e]">
+                <div className="flex h-11 items-center justify-between border-b border-white/[0.07] px-4"><span className="font-mono text-[10px] text-zinc-400">terminal</span><CopyButton value={installCommand} label="Copy installation commands" /></div>
+                <pre className="overflow-x-auto p-5 font-mono text-xs leading-7 text-zinc-300"><code>{installCommand}</code></pre>
+              </div>
+            </div>
+            <div className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-white/[0.07] pt-6">
+              <p className="font-mono text-[10px] text-zinc-400">Apache-2.0, Python 3.10+, local SQLite reference backend</p>
+              <a className="text-xs font-medium text-zinc-300 hover:text-white" href={packageUrl} {...externalLinkProps}>View on PyPI</a>
+            </div>
           </div>
         </section>
       </main>
 
-      <footer className="site-footer">
-        <div className="shell footer-grid">
-          <div className="footer-brand">
-            <SteadlithMark className="h-6 w-6 text-[var(--accent)]" />
-            <span>Steadlith</span>
+      <footer className="border-t border-white/[0.07] bg-[#070708]">
+        <div className="mx-auto grid max-w-7xl gap-8 px-5 py-10 sm:px-6 md:grid-cols-[1fr_auto] lg:px-8">
+          <div>
+            <a className="inline-flex items-center gap-2.5 font-semibold tracking-tight" href="#top">
+              <span className="grid size-7 place-items-center rounded border border-white/10 bg-white/[0.035]"><SteadlithMark className="h-4 w-4 text-emerald-300" /></span>
+              Steadlith
+            </a>
+            <p className="mt-3 max-w-md text-xs leading-5 text-zinc-400">Content-defined chunk identities, cache-aware planning, and transactional indexing for RAG corpora that change.</p>
           </div>
-          <p>Stable identities. Inspectable plans. Explicit state.</p>
-          <div className="footer-links">
-            <Link href="#top">Back to top</Link>
-            {repositoryUrl ? (
-              <a href={repositoryUrl} target="_blank" rel="noopener noreferrer">
-                Source
-              </a>
-            ) : null}
-            <a href={packageUrl} target="_blank" rel="noopener noreferrer">
-              PyPI
-            </a>
-            <a href={documentationUrl} target="_blank" rel="noopener noreferrer">
-              Docs
-            </a>
-            <span>Apache License 2.0</span>
+          <div className="flex flex-wrap gap-x-5 gap-y-3 text-xs text-zinc-400 md:justify-end">
+            <a className="hover:text-zinc-200" href={documentationUrl} {...externalLinkProps}>Docs</a>
+            <a className="hover:text-zinc-200" href={apiUrl} {...externalLinkProps}>Python API</a>
+            {securityUrl ? <a className="hover:text-zinc-200" href={securityUrl} {...externalLinkProps}>Security</a> : null}
+            {contributingUrl ? <a className="hover:text-zinc-200" href={contributingUrl} {...externalLinkProps}>Contributing</a> : null}
+            <a className="hover:text-zinc-200" href={packageUrl} {...externalLinkProps}>PyPI</a>
+            {repositoryUrl ? <a className="hover:text-zinc-200" href={repositoryUrl} {...externalLinkProps}>GitHub</a> : null}
+          </div>
+          <div className="flex flex-wrap gap-x-5 gap-y-2 border-t border-white/[0.06] pt-5 font-mono text-[10px] text-zinc-400 md:col-span-2 md:justify-between">
+            <span>Apache License 2.0</span><span>v{releaseVersion}, offline by default</span>
           </div>
         </div>
       </footer>

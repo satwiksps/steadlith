@@ -1,6 +1,23 @@
-# Steadlith documentation
+# Steadlith
+
+**Content-defined chunk identities, cache-aware planning, and transactional indexing for RAG corpora that change.**
 
 Steadlith is an incremental indexing toolkit for retrieval-augmented generation systems. It assigns content-defined identities to chunks, reuses cached embeddings, previews index changes, and publishes each SQLite index update as one transaction.
+
+```{raw} html
+<p>
+  <a class="md-button md-button--primary" href="getting-started/installation/">Install Steadlith</a>
+  <a class="md-button" href="getting-started/quickstart/">Follow the quick start</a>
+</p>
+```
+
+```console
+python -m pip install steadlith
+steadlith init
+steadlith plan
+```
+
+## What Steadlith provides
 
 ```{raw} html
 <div class="doc-card-grid">
@@ -10,8 +27,6 @@ Steadlith is an incremental indexing toolkit for retrieval-augmented generation 
   <div class="doc-card"><strong><a href="reference/python-api/">Use the Python API</a></strong><p>Integrate the stable chunker, parameter, chunk, and cache interfaces.</p></div>
 </div>
 ```
-
-## What Steadlith provides
 
 - Deterministic Rabin content-defined chunking with stable v1 chunk identities.
 - A read-only plan before every index mutation.

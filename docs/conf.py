@@ -44,7 +44,7 @@ autodoc_typehints_format = "short"
 autosummary_generate = False
 
 html_theme = "sphinx_immaterial"
-html_title = "Steadlith documentation"
+html_title = "Steadlith"
 html_logo = "_static/steadlith-mark.svg"
 html_favicon = "_static/steadlith-mark.svg"
 html_static_path = ["_static"]
@@ -63,11 +63,16 @@ html_theme_options = {
     "toc_title": "On this page",
     "features": [
         "content.action.edit",
+        "content.code.annotate",
         "content.code.copy",
+        "content.tabs.link",
+        "navigation.footer",
+        "navigation.indexes",
+        "navigation.instant",
+        "navigation.instant.progress",
         "navigation.sections",
         "navigation.expand",
         "navigation.top",
-        "navigation.footer",
         "search.highlight",
         "search.share",
         "search.suggest",
@@ -75,6 +80,16 @@ html_theme_options = {
         "toc.sticky",
     ],
     "palette": [
+        {
+            "media": "(prefers-color-scheme: dark)",
+            "scheme": "slate",
+            "primary": "custom",
+            "accent": "custom",
+            "toggle": {
+                "icon": "material/weather-sunny",
+                "name": "Use light mode",
+            },
+        },
         {
             "media": "(prefers-color-scheme: light)",
             "scheme": "default",
@@ -85,15 +100,17 @@ html_theme_options = {
                 "name": "Use dark mode",
             },
         },
+    ],
+    "social": [
         {
-            "media": "(prefers-color-scheme: dark)",
-            "scheme": "slate",
-            "primary": "custom",
-            "accent": "custom",
-            "toggle": {
-                "icon": "material/weather-sunny",
-                "name": "Use light mode",
-            },
+            "icon": "fontawesome/brands/github",
+            "link": "https://github.com/satwiksps/steadlith",
+            "name": "Steadlith on GitHub",
+        },
+        {
+            "icon": "fontawesome/brands/python",
+            "link": "https://pypi.org/project/steadlith/",
+            "name": "Steadlith on PyPI",
         },
     ],
 }
