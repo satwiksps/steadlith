@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sys
 from types import ModuleType, SimpleNamespace
 
@@ -77,6 +78,30 @@ def test_openai_client_disables_sdk_retries(monkeypatch: pytest.MonkeyPatch) -> 
     OpenAIEmbeddingProvider(model="test", dimensions=8)
 
     assert captured["max_retries"] == 0
+
+
+def test_openai_ignores_environment_endpoint_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = ModuleType("openai")
+    captured: dict[str, object] = {}
+
+    class SDKError(Exception):
+        pass
+
+    class Client:
+        def __init__(self, *, base_url: str | None = None, **kwargs: object) -> None:
+            del kwargs
+            captured["endpoint"] = base_url or os.environ.get("OPENAI_BASE_URL")
+
+    module.APIConnectionError = SDKError  # type: ignore[attr-defined]
+    module.APITimeoutError = SDKError  # type: ignore[attr-defined]
+    module.OpenAI = Client  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "openai", module)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://unintended.example/v1")
+
+    OpenAIEmbeddingProvider(model="test", dimensions=8)
+
+    assert captured["endpoint"] == "https://api.openai.com/v1"
 
 
 def test_openai_success_preserves_response_order_and_request_shape(

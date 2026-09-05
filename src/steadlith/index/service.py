@@ -232,7 +232,10 @@ def prepare_index(
         effective = effective.with_embedding(model=embedding_model)
     target, documents = build_target_manifest(effective, paths)
     model_id, params_hash = embedding_identity(effective.embedding)
-    with SQLiteIndex(effective.resolve(effective.index.database), readonly=True) as index:
+    with (
+        SQLiteIndex(effective.resolve(effective.index.database), readonly=True) as index,
+        index.read_snapshot(),
+    ):
         old = _old_manifest(index)
         status = index.status()
     model_changed = status.model_id is not None and (
@@ -260,24 +263,29 @@ def prepare_index(
     )
 
 
-def _write_manifest_snapshot(config: SteadlithConfig, payload: Mapping[str, Any]) -> None:
+def _write_manifest_snapshot(config: SteadlithConfig) -> None:
     """Mirror the authoritative SQLite manifest as diffable JSON after commit."""
 
     database = config.resolve(config.index.database)
     destination = database.with_name(f"{database.name}.manifest.json")
     temporary: str | None = None
     try:
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        serialized = json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
-        descriptor, temporary = tempfile.mkstemp(
-            dir=str(destination.parent), prefix="manifest.", suffix=".tmp"
-        )
-        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
-            handle.write(serialized)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, destination)
-    except (OSError, TypeError, ValueError) as exc:
+        # An older apply may finish after a newer generation has committed. Read
+        # the current manifest and prevent commits until its mirror is published.
+        with SQLiteIndex(database) as index, index.read_snapshot(block_writers=True):
+            payload = index.get_manifest_payload()
+            if payload is None:
+                raise BackendError("The authoritative SQLite manifest is absent")
+            serialized = json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+            descriptor, temporary = tempfile.mkstemp(
+                dir=str(destination.parent), prefix="manifest.", suffix=".tmp"
+            )
+            with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
+                handle.write(serialized)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, destination)
+    except (OSError, TypeError, ValueError, BackendError) as exc:
         raise BackendError(
             "The index committed, but its diffable manifest mirror could not be written: "
             f"{exc}. Rerun 'steadlith index' with the same configuration and source scope to "
@@ -305,7 +313,7 @@ def apply_prepared(prepared: PreparedIndex) -> ApplyResult:
                 "Index state changed after this plan was prepared; prepare a fresh plan and retry"
             )
         if not prepared.plan.requires_apply:
-            _write_manifest_snapshot(config, prepared.target_manifest.to_dict())
+            _write_manifest_snapshot(config)
             return ApplyResult(
                 plan=prepared.plan,
                 active_chunks=status.active_chunks,
@@ -413,7 +421,7 @@ def apply_prepared(prepared: PreparedIndex) -> ApplyResult:
             check_root=True,
             expected_root=prepared.plan.old_root,
         )
-    _write_manifest_snapshot(config, payload)
+    _write_manifest_snapshot(config)
     return ApplyResult(
         plan=prepared.plan,
         active_chunks=active,
@@ -489,7 +497,7 @@ def compact_index(
 def verify_index(config: SteadlithConfig) -> tuple[bool, tuple[str, ...]]:
     config.validate()
     database = config.resolve(config.index.database)
-    with SQLiteIndex(database, readonly=True) as index:
+    with SQLiteIndex(database, readonly=True) as index, index.read_snapshot():
         _, problems = index.verify()
         payload = index.get_manifest_payload()
     if payload is None:

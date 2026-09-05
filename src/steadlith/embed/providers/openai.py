@@ -33,13 +33,16 @@ class OpenAIEmbeddingProvider:
         self.model = model
         self._dimensions = dimensions
         self._transient_error_types = (APIConnectionError, APITimeoutError)
+        endpoint = base_url or "https://api.openai.com/v1"
         try:
-            self._client: Any = OpenAI(api_key=api_key, base_url=base_url, max_retries=0)
+            # Passing None lets the SDK substitute OPENAI_BASE_URL, bypassing the
+            # configured endpoint restriction and disagreeing with cache identity.
+            self._client: Any = OpenAI(api_key=api_key, base_url=endpoint, max_retries=0)
         except Exception as exc:
             raise ProviderError(f"Could not initialize the OpenAI client: {exc}") from exc
         payload = json.dumps(
             {
-                "base_url": base_url or "https://api.openai.com/v1",
+                "base_url": endpoint,
                 "dimensions": dimensions,
                 "model": model,
                 "provider": "openai",

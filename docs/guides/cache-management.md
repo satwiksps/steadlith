@@ -53,7 +53,7 @@ The command writes deterministic JSON Lines through a temporary file and atomic 
 steadlith cache export --force cache-backup.jsonl
 ```
 
-It also refuses destinations that resolve to the live cache, its SQLite sidecars, or the configured index database.
+Even with `--force`, exports cannot replace managed project state: the configuration, cache and index databases, their SQLite sidecars, the manifest mirror, migration journal, or anything in the migration-receipt directory. Choose a separate backup file.
 
 ## Import
 
@@ -70,6 +70,11 @@ Import validates:
 - vector dimension and value constraints;
 - duplicate-key consistency;
 - conflicts with existing entries.
+
+Identity fields must be non-empty strings, vectors must be arrays of finite numbers,
+and token counts must be non-negative integers. Malformed fields are rejected instead
+of being converted. Validation failure leaves the cache unchanged and identifies
+the invalid line.
 
 An identical existing entry is retained and touched. A different vector under an existing key fails instead of overwriting trusted state.
 

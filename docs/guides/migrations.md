@@ -23,6 +23,8 @@ Preview is the default. `--dry-run` is accepted when an explicit marker is usefu
 
 Positional source paths are permitted only for exploratory previews. An apply always uses the persisted `[sources]` configuration so the published config immediately reproduces the committed corpus.
 
+Migration editing supports named `[chunker]` and `[embedding]` tables with single-line settings, including quoted names and whitespace inside table headers. It preserves unrelated comments and settings. If a configuration uses inline or dotted tables, or multiline values for settings being changed, rewrite those sections as named tables before migrating. The parsed target must match exactly the requested changes.
+
 ## Apply a reviewed migration
 
 Repeat the target arguments with `--apply` and required approvals:
@@ -48,6 +50,8 @@ Apply sequence:
 7. Remove the pending journal.
 
 The receipt is checksummed for corruption detection. It is not an authenticated audit record.
+
+Both the current and target TOML must fit the 1 MiB migration limit. Oversized targets are rejected during preparation, before any provider work or index publication, so recovery can always read the staged configuration.
 
 Journal and receipt publication requires a filesystem that supports hard-link creation within a directory. Configuration publication requires atomic replacement within its directory. Steadlith creates each temporary file beside its destination; filesystems that do not provide these operations are unsupported and cause migration apply or recovery to fail with a storage error. Parent directories are not explicitly fsynced, so sudden-power-loss durability of directory entries depends on the operating system and filesystem.
 

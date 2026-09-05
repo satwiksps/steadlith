@@ -6,6 +6,26 @@ All notable changes to Steadlith are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-09-05
+
+### Fixed
+
+- Reject overlapping configuration, cache, index, SQLite sidecar, manifest, and migration paths before writes can corrupt project state.
+- Report invalid UTF-8 configuration files as actionable configuration errors, including JSON CLI errors.
+- Reject malformed cache import fields without coercing identities, vectors, or token counts, and bound import line reads.
+- Prevent forced cache exports from replacing configuration, databases and sidecars, manifest mirrors, migration journals, or receipts.
+- Roll back interrupted cache and index transactions so the same connection can be retried safely.
+- Keep related SQLite reads on one committed generation and report malformed stored metadata as verification failures.
+- Publish manifest mirrors from the latest committed SQLite state under a writer reservation, preventing delayed operations from restoring an older mirror.
+- Account for reusable active vectors when estimating embeddings for copied or renamed chunks after cache pruning.
+- Pin OpenAI clients to the official API endpoint so inherited `OPENAI_BASE_URL` values cannot redirect requests or disagree with cache identity.
+- Validate migration target size and the exact configuration change before publishing state; accept quoted and padded TOML table and key names.
+
+### Changed
+
+- Exercise installed-wheel indexing, querying, migration, cache, deletion, compaction, and fixture retrieval workflows in pull-request and release CI.
+- Activate the contributor virtual environment before installing development dependencies.
+
 ## [1.0.0] - 2026-08-22
 
 ### Added
@@ -92,7 +112,8 @@ All notable changes to Steadlith are documented here. The format follows
 - The bundled hash embedder is deterministic test infrastructure, not a production retrieval model.
 - Post-anchor structural snapping is experimental and requires project-specific legal review before use.
 
-[Unreleased]: https://github.com/satwiksps/steadlith/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/satwiksps/steadlith/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/satwiksps/steadlith/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/satwiksps/steadlith/compare/v0.3.0...v1.0.0
 [0.3.0]: https://github.com/satwiksps/steadlith/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/satwiksps/steadlith/compare/v0.1.0...v0.2.0

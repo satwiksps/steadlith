@@ -137,6 +137,34 @@ def test_explicit_project_scope_never_indexes_steadlith_state(tmp_path: Path) ->
     assert not second.plan.requires_apply
 
 
+@pytest.mark.parametrize("move", [False, True], ids=["copy", "rename"])
+def test_plan_matches_active_vector_reuse_after_cache_pruning(tmp_path: Path, move: bool) -> None:
+    from steadlith.store import Cache
+
+    config = _config(tmp_path)
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    source = docs / "original.md"
+    source.write_text("existing reusable content", encoding="utf-8")
+    apply_prepared(prepare_index(config))
+    with Cache(config.resolve(config.store.cache)) as cache:
+        assert cache.prune(max_entries=0) == 1
+    if move:
+        source.rename(docs / "new.md")
+    else:
+        (docs / "new.md").write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+
+    prepared = prepare_index(config)
+    assert prepared.plan.counts[OperationKind.ADD] == 1
+    assert prepared.plan.cost.chunks_to_embed == 0
+    assert prepared.plan.cost.tokens_to_embed == 0
+    applied = apply_prepared(prepared)
+    assert applied.embedded_chunks == 0
+    assert applied.cache_hits == 0
+    assert verify_index(config) == (True, ())
+    assert query_index(config, "reusable")[0].document_id in {"docs/new.md", "docs/original.md"}
+
+
 def test_stale_prepared_plan_cannot_overwrite_newer_state(tmp_path: Path) -> None:
     config = _config(tmp_path)
     docs = tmp_path / "docs"
@@ -147,6 +175,37 @@ def test_stale_prepared_plan_cannot_overwrite_newer_state(tmp_path: Path) -> Non
     apply_prepared(first)
     with pytest.raises(BackendError, match="changed after this plan"):
         apply_prepared(stale)
+
+
+def test_preparation_keeps_manifest_and_generation_in_one_snapshot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from steadlith.index.adapters import SQLiteIndex
+
+    config = _config(tmp_path)
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "guide.md").write_text("stable source content", encoding="utf-8")
+    apply_prepared(prepare_index(config))
+    migration = prepare_index(config.with_embedding(model="changed-model"))
+    get_manifest = SQLiteIndex.get_manifest_payload
+    published = False
+
+    def publish_after_manifest(index: SQLiteIndex) -> object:
+        nonlocal published
+        payload = get_manifest(index)
+        if not published:
+            published = True
+            apply_prepared(migration)
+        return payload
+
+    monkeypatch.setattr(SQLiteIndex, "get_manifest_payload", publish_after_manifest)
+    prepared = prepare_index(config)
+    assert published
+    assert prepared.expected_generation == 1
+    assert index_status(config).generation == 2
+    with pytest.raises(BackendError, match="fresh plan"):
+        apply_prepared(prepared)
 
 
 def test_query_embeds_against_active_index_identity(tmp_path: Path) -> None:
@@ -254,6 +313,76 @@ def test_manifest_failure_is_detected_and_noop_retry_repairs_it(
     assert not valid
     assert any("manifest mirror" in issue.lower() for issue in issues)
 
+    retry = prepare_index(config)
+    assert not retry.plan.requires_apply
+    apply_prepared(retry)
+    assert verify_index(config) == (True, ())
+
+
+@pytest.mark.parametrize("no_op", [False, True], ids=["update", "no-op"])
+def test_delayed_manifest_publication_keeps_the_newest_committed_snapshot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, no_op: bool
+) -> None:
+    from steadlith.index import service
+
+    config = _config(tmp_path)
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    source = docs / "guide.md"
+    source.write_text("initial source", encoding="utf-8")
+    apply_prepared(prepare_index(config))
+    if not no_op:
+        source.write_text("intermediate update", encoding="utf-8")
+    older = prepare_index(config)
+    write_snapshot = service._write_manifest_snapshot
+    published_newer = False
+
+    def finish_newer_before_mirroring(mirror_config: SteadlithConfig) -> None:
+        nonlocal published_newer
+        if not published_newer:
+            published_newer = True
+            source.write_text("latest committed content", encoding="utf-8")
+            apply_prepared(prepare_index(config))
+        write_snapshot(mirror_config)
+
+    monkeypatch.setattr(service, "_write_manifest_snapshot", finish_newer_before_mirroring)
+    apply_prepared(older)
+    assert published_newer
+    assert index_status(config).generation == (2 if no_op else 3)
+    assert query_index(config, "latest")[0].text == "latest committed content"
+    assert verify_index(config) == (True, ())
+
+
+def test_manifest_publication_reserves_writes_and_recovers_from_file_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sqlite3
+
+    from steadlith.index import service
+
+    config = _config(tmp_path)
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    source = docs / "guide.md"
+    source.write_text("original content", encoding="utf-8")
+    apply_prepared(prepare_index(config))
+    source.write_text("committed replacement", encoding="utf-8")
+    prepared = prepare_index(config)
+    database = config.resolve(config.index.database)
+
+    def reject_mirror_replace(*_args: object) -> None:
+        with sqlite3.connect(database, timeout=0) as writer:
+            with pytest.raises(sqlite3.OperationalError, match="locked"):
+                writer.execute("BEGIN IMMEDIATE")
+        assert query_index(config, "replacement")[0].text == "committed replacement"
+        raise PermissionError("manifest target is read-only")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(service.os, "replace", reject_mirror_replace)
+        with pytest.raises(BackendError, match="index committed.*read-only"):
+            apply_prepared(prepared)
+    assert index_status(config).generation == 2
+    assert not list(database.parent.glob("manifest.*.tmp"))
     retry = prepare_index(config)
     assert not retry.plan.requires_apply
     apply_prepared(retry)

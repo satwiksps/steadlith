@@ -80,7 +80,7 @@ Constraints:
 - text in missing chunks is sent to the provider;
 - current price, quota, rate limits, retention, and regional availability remain operator responsibilities.
 
-Custom base URLs are rejected. This prevents an untrusted repository configuration from forwarding documents and a chosen environment secret to another endpoint.
+Custom base URLs are rejected in project configuration, and `OPENAI_BASE_URL` cannot override the official endpoint. This prevents repository configuration or an inherited endpoint override from forwarding documents and the API key to another endpoint.
 
 ## Sentence Transformers provider
 

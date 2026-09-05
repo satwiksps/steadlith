@@ -451,3 +451,70 @@ def test_rollback_refuses_sources_that_no_longer_reproduce_old_root(tmp_path: Pa
 
     with pytest.raises(ConfigError, match="no longer reproduce"):
         prepare_rollback(config_path)
+
+
+def test_migration_rejects_oversized_target_before_writing_state(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config_path = _project(tmp_path)
+    before_config = config_path.read_bytes()
+    before_status = index_status(load_config(config_path))
+    monkeypatch.setattr(workflow, "_CONFIG_LIMIT", len(before_config) + 32)
+
+    with pytest.raises(ConfigError, match="Target configuration exceeds"):
+        migration = prepare_migration(
+            config_path, overrides={"embedding.model": "a-long-model-name-" * 20}
+        )
+        apply_migration(migration)
+
+    assert config_path.read_bytes() == before_config
+    assert index_status(load_config(config_path)) == before_status
+    assert not pending_migration_path(config_path).exists()
+    assert not (tmp_path / ".steadlith/index.sqlite3.migrations").exists()
+
+
+@pytest.mark.parametrize(
+    ("table", "key"),
+    [("[ embedding ]", "model"), ('["embedding"]', '"model"'), ("['embedding']", "'model'")],
+)
+def test_migration_accepts_quoted_and_padded_toml_names(
+    tmp_path: Path, table: str, key: str
+) -> None:
+    config_path = _project(tmp_path)
+    original = config_path.read_text(encoding="utf-8").replace("[embedding]", table)
+    original = original.replace('model = "test-hash-v1"', f'{key} = "test-hash-v1"')
+    original += "\n# Preserve this operator note during migration.\n"
+    config_path.write_text(original, encoding="utf-8")
+    original_bytes = config_path.read_bytes()
+
+    apply_migration(prepare_migration(config_path, overrides={"embedding.model": "test-hash-v2"}))
+
+    assert load_config(config_path).embedding.model == "test-hash-v2"
+    assert "# Preserve this operator note" in config_path.read_text(encoding="utf-8")
+    assert verify_index(load_config(config_path)) == (True, ())
+
+    apply_migration(prepare_rollback(config_path))
+
+    assert config_path.read_bytes() == original_bytes
+    assert verify_index(load_config(config_path)) == (True, ())
+
+
+def test_migration_rejects_editing_a_table_name_inside_a_multiline_string(tmp_path: Path) -> None:
+    config_path = _project(tmp_path)
+    original = config_path.read_text(encoding="utf-8")
+    # Place the real chunker table after a table-looking line inside a model label.
+    chunker, remaining = original.split("[embedding]", 1)
+    original = "[embedding]" + remaining + "\n" + chunker
+    original = original.replace(
+        'model = "test-hash-v1"', "model = '''model label\n[chunker]\nmax_tokens = 24\n'''"
+    )
+    config_path.write_text(original, encoding="utf-8")
+    before_config = config_path.read_bytes()
+    before_status = index_status(load_config(config_path))
+
+    with pytest.raises(ConfigError, match="could not safely update"):
+        prepare_migration(config_path, overrides={"chunker.max_tokens": 20})
+
+    assert config_path.read_bytes() == before_config
+    assert index_status(load_config(config_path)) == before_status
+    assert not pending_migration_path(config_path).exists()

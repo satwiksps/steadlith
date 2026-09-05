@@ -7,8 +7,8 @@ authors:
     given-names: "Satwik Sai Prakash"
     email: "sahoospsatwik@gmail.com"
 repository-code: "https://github.com/satwiksps/steadlith"
-version: 1.0.0
-date-released: 2026-08-22
+version: 1.0.1
+date-released: 2026-09-05
 license: Apache-2.0
 keywords:
   - retrieval-augmented generation

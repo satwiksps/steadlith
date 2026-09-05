@@ -258,6 +258,26 @@ class SteadlithConfig:
                 ) from exc
         if state_paths["store.cache"] == state_paths["index.database"]:
             raise ConfigError("store.cache and index.database must use different files")
+        # SQLite sidecars and derived index files share the state namespace.
+        # A collision can replace a live database when the manifest is published.
+        reserved = dict(state_paths)
+        for label, path in state_paths.items():
+            for suffix in ("-wal", "-shm", "-journal"):
+                reserved[f"{label} {suffix} sidecar"] = Path(f"{path}{suffix}").resolve()
+        database = state_paths["index.database"]
+        reserved["index manifest"] = Path(f"{database}.manifest.json").resolve()
+        reserved["migration receipts"] = Path(f"{database}.migrations").resolve()
+        if self.config_path is not None:
+            reserved["configuration"] = self.config_path.expanduser().resolve()
+            reserved["migration journal"] = pending_migration_path(self.config_path)
+        paths = list(reserved.items())
+        for index, (label, path) in enumerate(paths):
+            for other_label, other in paths[index + 1 :]:
+                if path == other or path in other.parents or other in path.parents:
+                    raise ConfigError(
+                        f"State paths overlap: {label} ({path}) and {other_label} ({other}). "
+                        "Configure separate paths outside reserved state files and directories."
+                    )
         return self
 
     def resolve(self, value: str) -> Path:
@@ -449,6 +469,8 @@ def load_config(path: str | Path = DEFAULT_CONFIG_FILENAME) -> SteadlithConfig:
         raise ConfigError(
             f"Configuration not found: {config_path}. Run 'steadlith init' first."
         ) from exc
+    except UnicodeDecodeError as exc:
+        raise ConfigError(f"Configuration must be valid UTF-8: {config_path}") from exc
     except (OSError, tomllib.TOMLDecodeError) as exc:
         raise ConfigError(f"Could not read {config_path}: {exc}") from exc
     if _has_legacy_marker(raw, config_path):
@@ -572,6 +594,8 @@ def adopt_legacy_config(
             raw = tomllib.load(handle)
     except FileNotFoundError as exc:
         raise ConfigError(f"Configuration not found: {source_path}") from exc
+    except UnicodeDecodeError as exc:
+        raise ConfigError(f"Configuration must be valid UTF-8: {source_path}") from exc
     except (OSError, tomllib.TOMLDecodeError) as exc:
         raise ConfigError(f"Could not read {source_path}: {exc}") from exc
     config = _config_from_mapping(

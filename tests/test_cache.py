@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from pathlib import Path
 
@@ -139,6 +140,20 @@ def test_cache_export_cannot_overwrite_live_database_or_existing_file(tmp_path: 
         assert cache.export_jsonl(export, force=True) == 1
 
 
+def test_cache_export_preserves_rollback_journal_even_with_force(tmp_path: Path) -> None:
+    path = tmp_path / "cache.sqlite3"
+    journal = Path(f"{path}-journal")
+    with Cache(path) as cache:
+        cache.put("chunk", "model", "params", (1.0,), token_count=1)
+        journal.write_bytes(b"preserve rollback journal")
+
+        with pytest.raises(BackendError, match="live cache or its sidecars"):
+            cache.export_jsonl(journal, force=True)
+
+        assert journal.read_bytes() == b"preserve rollback journal"
+        assert cache.get("chunk", "model", "params") == (1.0,)
+
+
 def test_unsigned_cache_import_requires_explicit_trust(tmp_path: Path) -> None:
     source = tmp_path / "cache.jsonl"
     source.write_text("", encoding="utf-8")
@@ -179,3 +194,52 @@ def test_cache_import_rejects_invalid_encoding_and_live_database(tmp_path: Path)
             cache.import_jsonl(invalid, trusted=True)
         with pytest.raises(BackendError, match="live cache"):
             cache.import_jsonl(path, trusted=True)
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        {"chunk_hash": None},
+        {"model_id": 3},
+        {"params_hash": []},
+        {"token_count": 1.5},
+        {"token_count": True},
+        {"token_count": float("inf")},
+        {"vector": "12"},
+        {"vector": {"1": 0}},
+        {"vector": [True]},
+        {"vector": ["1"]},
+    ],
+)
+def test_cache_import_rejects_malformed_fields_without_partial_writes(
+    tmp_path: Path, invalid: dict[str, object]
+) -> None:
+    valid = {
+        "chunk_hash": "new",
+        "model_id": "model",
+        "params_hash": "params",
+        "vector": [1.0, 0.0],
+        "token_count": 2,
+    }
+    source = tmp_path / "import.jsonl"
+    source.write_text(
+        json.dumps(valid) + "\n" + json.dumps({**valid, **invalid}) + "\n", encoding="utf-8"
+    )
+    with Cache(tmp_path / "cache.sqlite3") as cache:
+        cache.put("existing", "model", "params", (0.0, 1.0), token_count=2)
+        with pytest.raises(BackendError, match=r"import.jsonl:2"):
+            cache.import_jsonl(source, trusted=True)
+        assert cache.stats().entries == 1
+        assert not cache.contains("new", "model", "params")
+        assert cache.get("existing", "model", "params") == (0.0, 1.0)
+
+
+def test_interrupted_cache_transaction_rolls_back_and_can_retry(tmp_path: Path) -> None:
+    with Cache(tmp_path / "cache.sqlite3") as cache:
+        cache.put("existing", "model", "params", (1.0,))
+        with pytest.raises(KeyboardInterrupt), cache.transaction() as connection:
+            connection.execute("DELETE FROM embeddings")
+            raise KeyboardInterrupt
+        assert cache.contains("existing", "model", "params")
+        cache.put("new", "model", "params", (0.0,))
+        assert cache.stats().entries == 2

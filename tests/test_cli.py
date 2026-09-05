@@ -8,8 +8,40 @@ from pathlib import Path
 import pytest
 
 from steadlith.cli import main
+from steadlith.config import load_config
 from steadlith.errors import ExitCode
+from steadlith.index.service import verify_index
 from steadlith.store import Cache
+
+
+def test_index_rejects_cache_manifest_collision_before_writing(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config = tmp_path / "steadlith.toml"
+    config.write_text(
+        '[store]\ncache="state.sqlite3.manifest.json"\n[index]\ndatabase="state.sqlite3"\n',
+        encoding="utf-8",
+    )
+    source = tmp_path / "source.txt"
+    source.write_text("alpha beta gamma", encoding="utf-8")
+    original = {path.name: path.read_bytes() for path in tmp_path.iterdir()}
+
+    assert main(["index", str(source), "-c", str(config), "--json"]) == ExitCode.CONFIG_ERROR
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["error_type"] == "ConfigError"
+    assert "overlap" in payload["error"]
+    assert {path.name: path.read_bytes() for path in tmp_path.iterdir()} == original
+
+
+def test_invalid_utf8_config_reports_json_error(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config = tmp_path / "steadlith.toml"
+    config.write_bytes(b"# invalid UTF-8: \xff\n")
+    assert main(["plan", "-c", str(config), "--json"]) == ExitCode.CONFIG_ERROR
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["error_type"] == "ConfigError"
+    assert "UTF-8" in payload["error"]
 
 
 def test_init_status_and_verify_exit_codes(
@@ -296,6 +328,87 @@ def test_cache_cli_round_trip(tmp_path: Path, capsys: pytest.CaptureFixture[str]
     assert json.loads(capsys.readouterr().out)["imported"] == 2
     with Cache(tmp_path / ".steadlith" / "cache.sqlite3", readonly=True) as cache:
         assert cache.stats().entries == 2
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        "steadlith.toml",
+        "steadlith.toml.migration.json",
+        ".steadlith/index.sqlite3",
+        ".steadlith/index.sqlite3-wal",
+        ".steadlith/index.sqlite3-shm",
+        ".steadlith/index.sqlite3-journal",
+        ".steadlith/index.sqlite3.manifest.json",
+        ".steadlith/index.sqlite3.migrations/export.jsonl",
+        ".steadlith/cache.sqlite3",
+        ".steadlith/cache.sqlite3-wal",
+        ".steadlith/cache.sqlite3-shm",
+        ".steadlith/cache.sqlite3-journal",
+        "receipt",
+    ],
+)
+def test_cache_export_cannot_replace_project_state_even_with_force(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], target: str
+) -> None:
+    config = tmp_path / "steadlith.toml"
+    assert main(["init", "-c", str(config), "--json"]) == ExitCode.SUCCESS
+    (tmp_path / "README.md").write_text("synthetic retrieval evidence", encoding="utf-8")
+    assert main(["index", "-c", str(config), "--json"]) == ExitCode.SUCCESS
+    if target == "receipt":
+        assert (
+            main(
+                [
+                    "migrate",
+                    "--embedding-model",
+                    "export-test-model",
+                    "--apply",
+                    "--allow-delete",
+                    "-c",
+                    str(config),
+                    "--json",
+                ]
+            )
+            == ExitCode.SUCCESS
+        )
+        destination = next((tmp_path / ".steadlith/index.sqlite3.migrations").glob("*.json"))
+    else:
+        destination = tmp_path / target
+    original = {
+        path.relative_to(tmp_path): path.read_bytes()
+        for path in tmp_path.rglob("*")
+        if path.is_file()
+    }
+    capsys.readouterr()
+    if target in {
+        ".steadlith/cache.sqlite3",
+        ".steadlith/cache.sqlite3-wal",
+        ".steadlith/cache.sqlite3-shm",
+    }:
+        expected_code = ExitCode.BACKEND_OR_PROVIDER_ERROR
+        expected_message = "live cache or its sidecars"
+    else:
+        expected_code = ExitCode.CONFIG_ERROR
+        expected_message = (
+            "configured index" if target == ".steadlith/index.sqlite3" else "managed project state"
+        )
+
+    assert (
+        main(["cache", "export", str(destination), "--force", "-c", str(config), "--json"])
+        == expected_code
+    )
+
+    error = json.loads(capsys.readouterr().out)
+    assert error["error_type"] == (
+        "ConfigError" if expected_code == ExitCode.CONFIG_ERROR else "BackendError"
+    )
+    assert expected_message in error["error"]
+    assert {
+        path.relative_to(tmp_path): path.read_bytes()
+        for path in tmp_path.rglob("*")
+        if path.is_file()
+    } == original
+    assert verify_index(load_config(config)) == (True, ())
 
 
 def test_measure_churn_cli_forwards_filters(

@@ -172,7 +172,7 @@ At least one limit is required and both must be non-negative. Age pruning remove
 steadlith cache export [-c PATH] [--json] [--force] DESTINATION
 ```
 
-Writes all cache entries as deterministic JSON Lines through an atomic temporary file. It refuses to overwrite an existing destination unless `--force` is supplied, and it never permits the live cache, its SQLite sidecars, or the configured index database as the destination. A missing cache produces an empty file.
+Writes all cache entries as deterministic JSON Lines through an atomic temporary file. It refuses to overwrite an existing destination unless `--force` is supplied. Managed project state is always protected: the configuration, cache and index databases, their SQLite sidecars, the manifest mirror, migration journal, and files in the migration-receipt directory cannot be export destinations, even with `--force`. A missing cache produces an empty file.
 
 ### `cache import`
 

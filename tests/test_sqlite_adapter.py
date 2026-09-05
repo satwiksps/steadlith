@@ -138,7 +138,7 @@ def test_compaction_cutoff_removes_rows_at_or_before_the_boundary(tmp_path: Path
     assert remaining == [("after",)]
 
 
-def test_index_verify_detects_consistent_snapshot(tmp_path: Path) -> None:
+def _publish_verified_snapshot(index: SQLiteIndex) -> None:
     chunk_hash = chunk_content_hash(
         "hello",
         chunker_id="test-chunker",
@@ -166,26 +166,126 @@ def test_index_verify_detects_consistent_snapshot(tmp_path: Path) -> None:
         normalizer_version="test-normalizer",
     )
     manifest = CorpusManifest({"guide.md": document})
-    with SQLiteIndex(tmp_path / "index.sqlite3") as index:
-        index.apply_snapshot(
-            records=(record,),
-            documents=(
-                DocumentState(
-                    document_id="guide.md",
-                    root_hash=document.root_hash,
-                    chunk_count=1,
-                    hard_cuts=0,
-                    metadata={"path": "guide.md"},
-                ),
+    index.apply_snapshot(
+        records=(record,),
+        documents=(
+            DocumentState(
+                document_id="guide.md",
+                root_hash=document.root_hash,
+                chunk_count=1,
+                hard_cuts=0,
+                metadata={"path": "guide.md"},
             ),
-            manifest_payload=manifest.to_dict(),
-            corpus_root=manifest.root_hash,
+        ),
+        manifest_payload=manifest.to_dict(),
+        corpus_root=manifest.root_hash,
+        model_id="hash:test",
+        params_hash="params",
+        vector_dimensions=1,
+        expected_generation=0,
+    )
+
+
+def test_index_verify_detects_consistent_snapshot(tmp_path: Path) -> None:
+    with SQLiteIndex(tmp_path / "index.sqlite3") as index:
+        _publish_verified_snapshot(index)
+        assert index.verify() == (True, ())
+
+
+@pytest.mark.parametrize("metadata", ["[]", "null", '"text"', "1"])
+def test_verify_reports_non_object_metadata(tmp_path: Path, metadata: str) -> None:
+    path = tmp_path / "index.sqlite3"
+    with SQLiteIndex(path) as index:
+        _publish_verified_snapshot(index)
+        with sqlite3.connect(path) as connection:
+            connection.execute("UPDATE chunks SET metadata_json = ?", (metadata,))
+        valid, problems = index.verify()
+        assert not valid
+        assert any("metadata is invalid" in problem for problem in problems)
+
+
+def test_interrupted_snapshot_rolls_back_and_can_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import steadlith.index.adapters.sqlite as adapter
+
+    path = tmp_path / "index.sqlite3"
+    with SQLiteIndex(path) as index:
+        _publish_verified_snapshot(index)
+        initial = index.status()
+        initial_records = index.active_records()
+
+        def interrupt(_vector: object) -> bytes:
+            raise KeyboardInterrupt
+
+        with monkeypatch.context() as patch:
+            patch.setattr(adapter, "_encode_vector", interrupt)
+            with pytest.raises(KeyboardInterrupt):
+                index.apply_snapshot(
+                    records=(_record("replacement", 0, "replacement", (1.0,)),),
+                    documents=(_document(1),),
+                    manifest_payload={},
+                    corpus_root="replacement",
+                    model_id="hash:test",
+                    params_hash="params",
+                    vector_dimensions=1,
+                    expected_generation=1,
+                )
+        assert index.status() == initial
+        assert index.active_records() == initial_records
+        assert index.verify() == (True, ())
+        index.apply_snapshot(
+            records=(),
+            documents=(),
+            manifest_payload=CorpusManifest({}).to_dict(),
+            corpus_root=CorpusManifest({}).root_hash,
             model_id="hash:test",
             params_hash="params",
             vector_dimensions=1,
-            expected_generation=0,
+            expected_generation=1,
         )
+        assert index.status().generation == 2
         assert index.verify() == (True, ())
+
+
+@pytest.mark.parametrize("operation", ["status", "verify"])
+def test_index_reads_one_committed_generation_during_concurrent_publish(
+    tmp_path: Path, operation: str
+) -> None:
+    path = tmp_path / "index.sqlite3"
+    with SQLiteIndex(path) as writer:
+        _publish_verified_snapshot(writer)
+        initial = writer.status()
+        with SQLiteIndex(path, readonly=True) as reader:
+            connection = reader._connection
+            assert connection is not None
+            published = False
+
+            def publish_after_metadata(statement: str) -> None:
+                nonlocal published
+                if published or "FROM documents" not in statement:
+                    return
+                published = True
+                empty = CorpusManifest({})
+                writer.apply_snapshot(
+                    records=(),
+                    documents=(),
+                    manifest_payload=empty.to_dict(),
+                    corpus_root=empty.root_hash,
+                    model_id="hash:test",
+                    params_hash="params",
+                    vector_dimensions=1,
+                    expected_generation=1,
+                )
+
+            connection.set_trace_callback(publish_after_metadata)
+            if operation == "status":
+                assert reader.status() == initial
+            else:
+                assert reader.verify() == (True, ())
+            assert published
+            assert reader.status().generation == 2
+            assert reader.status().active_chunks == 0
 
 
 def test_query_rejects_corrupt_candidate_vectors(tmp_path: Path) -> None:
@@ -222,6 +322,38 @@ def test_query_rejects_corrupt_candidate_vectors(tmp_path: Path) -> None:
     with SQLiteIndex(path, readonly=True) as index:
         with pytest.raises(BackendError, match="invalid candidate vector"):
             index.query((1.0, 0.0))
+
+
+def test_interrupted_query_releases_its_snapshot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import steadlith.index.adapters.sqlite as adapter
+
+    path = tmp_path / "index.sqlite3"
+    with SQLiteIndex(path) as writer:
+        _publish_verified_snapshot(writer)
+        with SQLiteIndex(path, readonly=True) as reader:
+
+            def interrupt(*_args: object) -> None:
+                raise KeyboardInterrupt
+
+            with monkeypatch.context() as patch:
+                patch.setattr(adapter, "_query_match", interrupt)
+                with pytest.raises(KeyboardInterrupt):
+                    reader.query((1.0,))
+            empty = CorpusManifest({})
+            writer.apply_snapshot(
+                records=(),
+                documents=(),
+                manifest_payload=empty.to_dict(),
+                corpus_root=empty.root_hash,
+                model_id="hash:test",
+                params_hash="params",
+                vector_dimensions=1,
+                expected_generation=1,
+            )
+            assert reader.query((1.0,)) == []
+            assert reader.status().generation == 2
 
 
 def test_status_rejects_corrupt_scalar_counters(tmp_path: Path) -> None:

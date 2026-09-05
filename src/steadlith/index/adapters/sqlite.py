@@ -7,7 +7,8 @@ import json
 import math
 import sqlite3
 import threading
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -287,7 +288,30 @@ class SQLiteIndex:
     def __exit__(self, *_: object) -> None:
         self.close()
 
+    @contextmanager
+    def read_snapshot(self, *, block_writers: bool = False) -> Iterator[None]:
+        """Keep related reads on one generation, optionally reserving the writer lock."""
+
+        with self._lock:
+            connection = self._connection
+            owns_transaction = connection is not None and not connection.in_transaction
+            if block_writers and (self.readonly or not owns_transaction):
+                raise BackendError("A writer reservation requires an idle writable index")
+            try:
+                if owns_transaction and connection is not None:
+                    connection.execute("BEGIN IMMEDIATE" if block_writers else "BEGIN")
+                yield
+            except sqlite3.Error as exc:
+                raise BackendError(f"Could not read SQLite index: {exc}") from exc
+            finally:
+                if owns_transaction and connection is not None and connection.in_transaction:
+                    connection.rollback()
+
     def get_manifest_payload(self) -> Mapping[str, Any] | None:
+        with self.read_snapshot():
+            return self._get_manifest_payload()
+
+    def _get_manifest_payload(self) -> Mapping[str, Any] | None:
         connection = self._connection
         if connection is None:
             return None
@@ -305,6 +329,10 @@ class SQLiteIndex:
         return payload
 
     def status(self) -> IndexStatus:
+        with self.read_snapshot():
+            return self._status()
+
+    def _status(self) -> IndexStatus:
         connection = self._connection
         if connection is None:
             return IndexStatus(None, 0, 0, 0, 0, 0, 0, None, None)
@@ -365,6 +393,10 @@ class SQLiteIndex:
             raise BackendError("Stored index counters are invalid") from exc
 
     def active_records(self) -> tuple[IndexRecord, ...]:
+        with self.read_snapshot():
+            return self._active_records()
+
+    def _active_records(self) -> tuple[IndexRecord, ...]:
         connection = self._connection
         if connection is None:
             return ()
@@ -442,7 +474,7 @@ class SQLiteIndex:
         except (TypeError, ValueError, OverflowError) as exc:
             raise BackendError(f"Snapshot contains a non-numeric vector value: {exc}") from exc
         try:
-            with self._lock:
+            with self._lock, connection:
                 connection.execute("BEGIN IMMEDIATE")
                 generation_row = connection.execute(
                     "SELECT value FROM index_meta WHERE key = 'generation'"
@@ -602,15 +634,11 @@ class SQLiteIndex:
                     """,
                     meta.items(),
                 )
-                connection.commit()
         except BackendError:
-            connection.rollback()
             raise
         except sqlite3.Error as exc:
-            connection.rollback()
             raise BackendError(f"Could not apply index snapshot: {exc}") from exc
         except Exception as exc:
-            connection.rollback()
             raise BackendError(f"Could not serialize index snapshot: {exc}") from exc
         return len(desired), len(removed_ids)
 
@@ -634,8 +662,7 @@ class SQLiteIndex:
         if not query_vector or any(not math.isfinite(value) for value in query_vector):
             raise ValueError("query vector must be non-empty and finite")
         try:
-            with self._lock:
-                connection.execute("BEGIN")
+            with self.read_snapshot():
                 meta = {
                     str(row["key"]): str(row["value"])
                     for row in connection.execute(
@@ -684,14 +711,7 @@ class SQLiteIndex:
                     raise BackendError(
                         f"The index contains an invalid query record: {exc}"
                     ) from exc
-                connection.rollback()
-        except (BackendError, ValueError):
-            if connection.in_transaction:
-                connection.rollback()
-            raise
         except sqlite3.Error as exc:
-            if connection.in_transaction:
-                connection.rollback()
             raise BackendError(f"Could not query SQLite index: {exc}") from exc
         return matches
 
@@ -731,6 +751,10 @@ class SQLiteIndex:
             raise BackendError(f"Could not compact index: {exc}") from exc
 
     def verify(self) -> tuple[bool, tuple[str, ...]]:
+        with self.read_snapshot():
+            return self._verify()
+
+    def _verify(self) -> tuple[bool, tuple[str, ...]]:
         connection = self._connection
         if connection is None:
             return False, ("index does not exist",)
@@ -867,7 +891,9 @@ class SQLiteIndex:
                         )
                     try:
                         metadata = json.loads(row["metadata_json"])
-                    except (TypeError, json.JSONDecodeError) as exc:
+                        if not isinstance(metadata, Mapping):
+                            raise ValueError("chunk metadata is not an object")
+                    except (TypeError, ValueError) as exc:
                         problems.append(
                             f"{document_id} position {position} metadata is invalid: {exc}"
                         )

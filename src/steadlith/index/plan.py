@@ -274,10 +274,13 @@ def create_plan(
     if embed_all:
         candidates = list(_all_records(new))
     else:
+        reusable_hashes = {record.chunk_hash for record in _all_records(old)}
         candidates = [
             operation.new_chunk
             for operation in operations
-            if operation.kind is OperationKind.ADD and operation.new_chunk is not None
+            if operation.kind is OperationKind.ADD
+            and operation.new_chunk is not None
+            and operation.chunk_hash not in reusable_hashes
         ]
     # A content-addressed embedding is paid once even if a chunk occurs repeatedly.
     unique_candidates: dict[str, ChunkRecord] = {}

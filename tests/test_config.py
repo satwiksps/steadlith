@@ -86,3 +86,40 @@ def test_invalid_config_types_and_tables_are_friendly(
     path.write_text(payload, encoding="utf-8")
     with pytest.raises(ConfigError, match=message):
         load_config(path)
+
+
+@pytest.mark.parametrize(
+    ("cache", "database", "filename"),
+    [
+        ("state.sqlite3.manifest.json", "state.sqlite3", "steadlith.toml"),
+        ("state.sqlite3-wal", "state.sqlite3", "steadlith.toml"),
+        ("state.sqlite3-shm", "state.sqlite3", "steadlith.toml"),
+        ("state.sqlite3-journal", "state.sqlite3", "steadlith.toml"),
+        ("cache.sqlite3", "cache.sqlite3-wal", "steadlith.toml"),
+        ("state.sqlite3.migrations/cache.sqlite3", "state.sqlite3", "steadlith.toml"),
+        ("state/cache.sqlite3", "state", "steadlith.toml"),
+        ("cache.sqlite3", "state.sqlite3", "cache.sqlite3"),
+        ("cache.sqlite3", "state.sqlite3", "state.sqlite3.manifest.json"),
+        ("steadlith.toml.migration.json", "state.sqlite3", "steadlith.toml"),
+    ],
+)
+def test_config_rejects_overlapping_state_paths(
+    tmp_path: Path, cache: str, database: str, filename: str
+) -> None:
+    path = tmp_path / filename
+    payload = f'[store]\ncache = "{cache}"\n[index]\ndatabase = "{database}"\n'
+    path.write_text(payload, encoding="utf-8")
+
+    with pytest.raises(ConfigError, match="overlap"):
+        load_config(path)
+
+    assert path.read_text(encoding="utf-8") == payload
+    assert sorted(tmp_path.iterdir()) == [path]
+
+
+def test_config_rejects_invalid_utf8_with_typed_error(tmp_path: Path) -> None:
+    path = tmp_path / "steadlith.toml"
+    path.write_bytes(b"# invalid UTF-8: \xff\n")
+
+    with pytest.raises(ConfigError, match="UTF-8"):
+        load_config(path)

@@ -12,6 +12,6 @@ from steadlith.store import Cache
 try:
     __version__ = version("steadlith")
 except PackageNotFoundError:  # source checkout without an installed distribution
-    __version__ = "1.0.0"
+    __version__ = "1.0.1"
 
 __all__ = ["CDCChunker", "CDCParams", "Cache", "Chunk", "__version__"]

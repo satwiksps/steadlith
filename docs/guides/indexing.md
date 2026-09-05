@@ -33,7 +33,7 @@ Each occurrence receives one operation:
 
 | Operation | Meaning | New embedding when identity is unchanged? |
 | --- | --- | --- |
-| `add` | New chunk occurrence. | Only on a cache miss for its chunk hash. |
+| `add` | New chunk occurrence. | Only when neither the active index nor cache holds its chunk hash. |
 | `keep` | Same hash and position. | No. |
 | `move` | Same chunk content at a different position or with changed source metadata. | No. |
 | `delete` | Previously active occurrence absent from the target. | No; the old record is tombstoned. |
@@ -41,6 +41,9 @@ Each occurrence receives one operation:
 A model or provider-parameter migration can re-embed kept and moved content because embedding identity changed. The chunk operation alone does not describe embedding work, so also inspect `embedding_count`, `cache_hits`, `tokens`, and the price estimate.
 
 Unknown provider prices remain unknown. Steadlith never fetches pricing or assumes that its word-based token count matches a provider billing tokenizer.
+
+Copied, repeated, and renamed chunks reuse the active vector even after its cache
+entry is pruned. This reuse does not count as a cache hit in the plan or apply result.
 
 ## Apply approval gates
 
@@ -78,9 +81,18 @@ An apply performs the following work:
 6. Write successful batches to the cache.
 7. Build all target index records in memory.
 8. Publish records, document state, manifest, root, embedding identity, and the next generation in one SQLite transaction.
-9. Write the diffable manifest mirror after the database commit.
+9. Mirror the latest committed manifest under a short SQLite writer reservation,
+   preventing an older apply from overwriting a newer generation's mirror.
 
 Queries never observe a partially published generation. If another writer committed after preparation, the apply fails instead of overwriting the newer state.
+
+Plan preparation, status, and database verification each read one consistent SQLite
+snapshot. An interrupted apply rolls back its uncommitted index changes; the same
+connection can be reused after the interruption.
+
+Readers remain available during mirror publication. A mirror write failure leaves
+the committed index usable and reports a repair instruction; rerunning `index`
+with the same configuration and source scope repairs the mirror.
 
 Provider-side charging cannot be strictly transactional with a local SQLite commit. A process failure after a remote provider accepts a request but before the cache records its response can lead to a repeated charge on retry.
 
