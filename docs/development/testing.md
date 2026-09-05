@@ -16,7 +16,7 @@ Test the distribution in a separate environment with only runtime dependencies:
 
 ```bash
 python -m venv tmp/wheel-check
-tmp/wheel-check/bin/python -m pip install dist/steadlith-1.0.0-py3-none-any.whl
+tmp/wheel-check/bin/python -m pip install dist/steadlith-1.0.1-py3-none-any.whl
 tmp/wheel-check/bin/python -m pip check
 tmp/wheel-check/bin/python tests/smoke_installed.py
 ```

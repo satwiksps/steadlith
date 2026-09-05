@@ -6,6 +6,8 @@ All notable changes to Steadlith are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-09-05
+
 ### Fixed
 
 - Reject overlapping configuration, cache, index, SQLite sidecar, manifest, and migration paths before writes can corrupt project state.
@@ -110,7 +112,8 @@ All notable changes to Steadlith are documented here. The format follows
 - The bundled hash embedder is deterministic test infrastructure, not a production retrieval model.
 - Post-anchor structural snapping is experimental and requires project-specific legal review before use.
 
-[Unreleased]: https://github.com/satwiksps/steadlith/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/satwiksps/steadlith/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/satwiksps/steadlith/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/satwiksps/steadlith/compare/v0.3.0...v1.0.0
 [0.3.0]: https://github.com/satwiksps/steadlith/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/satwiksps/steadlith/compare/v0.1.0...v0.2.0
