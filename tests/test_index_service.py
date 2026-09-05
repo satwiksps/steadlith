@@ -149,6 +149,37 @@ def test_stale_prepared_plan_cannot_overwrite_newer_state(tmp_path: Path) -> Non
         apply_prepared(stale)
 
 
+def test_preparation_keeps_manifest_and_generation_in_one_snapshot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from steadlith.index.adapters import SQLiteIndex
+
+    config = _config(tmp_path)
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "guide.md").write_text("stable source content", encoding="utf-8")
+    apply_prepared(prepare_index(config))
+    migration = prepare_index(config.with_embedding(model="changed-model"))
+    get_manifest = SQLiteIndex.get_manifest_payload
+    published = False
+
+    def publish_after_manifest(index: SQLiteIndex) -> object:
+        nonlocal published
+        payload = get_manifest(index)
+        if not published:
+            published = True
+            apply_prepared(migration)
+        return payload
+
+    monkeypatch.setattr(SQLiteIndex, "get_manifest_payload", publish_after_manifest)
+    prepared = prepare_index(config)
+    assert published
+    assert prepared.expected_generation == 1
+    assert index_status(config).generation == 2
+    with pytest.raises(BackendError, match="fresh plan"):
+        apply_prepared(prepared)
+
+
 def test_query_embeds_against_active_index_identity(tmp_path: Path) -> None:
     config = _config(tmp_path)
     docs = tmp_path / "docs"

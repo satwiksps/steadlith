@@ -82,6 +82,10 @@ An apply performs the following work:
 
 Queries never observe a partially published generation. If another writer committed after preparation, the apply fails instead of overwriting the newer state.
 
+Plan preparation, status, and database verification each read one consistent SQLite
+snapshot. An interrupted apply rolls back its uncommitted index changes; the same
+connection can be reused after the interruption.
+
 Provider-side charging cannot be strictly transactional with a local SQLite commit. A process failure after a remote provider accepts a request but before the cache records its response can lead to a repeated charge on retry.
 
 ## Idempotent routine

@@ -232,7 +232,10 @@ def prepare_index(
         effective = effective.with_embedding(model=embedding_model)
     target, documents = build_target_manifest(effective, paths)
     model_id, params_hash = embedding_identity(effective.embedding)
-    with SQLiteIndex(effective.resolve(effective.index.database), readonly=True) as index:
+    with (
+        SQLiteIndex(effective.resolve(effective.index.database), readonly=True) as index,
+        index.read_snapshot(),
+    ):
         old = _old_manifest(index)
         status = index.status()
     model_changed = status.model_id is not None and (
@@ -489,7 +492,7 @@ def compact_index(
 def verify_index(config: SteadlithConfig) -> tuple[bool, tuple[str, ...]]:
     config.validate()
     database = config.resolve(config.index.database)
-    with SQLiteIndex(database, readonly=True) as index:
+    with SQLiteIndex(database, readonly=True) as index, index.read_snapshot():
         _, problems = index.verify()
         payload = index.get_manifest_payload()
     if payload is None:
