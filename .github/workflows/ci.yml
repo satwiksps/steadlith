@@ -121,6 +121,14 @@ jobs:
       - name: Validate distribution metadata
         run: python -m twine check dist/*
 
+      - name: Exercise the installed wheel
+        run: |
+          wheel_venv="$(mktemp -d)"
+          python -m venv "$wheel_venv"
+          "$wheel_venv/bin/python" -m pip install --no-cache-dir dist/*.whl
+          "$wheel_venv/bin/python" -m pip check
+          "$wheel_venv/bin/python" tests/smoke_installed.py
+
       - name: Upload distributions
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

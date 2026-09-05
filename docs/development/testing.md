@@ -12,6 +12,17 @@ python -m pytest --cov=steadlith --cov-branch --cov-report=term-missing
 python -m build
 ```
 
+Test the distribution in a separate environment with only runtime dependencies:
+
+```bash
+python -m venv tmp/wheel-check
+tmp/wheel-check/bin/python -m pip install dist/steadlith-1.0.0-py3-none-any.whl
+tmp/wheel-check/bin/python -m pip check
+tmp/wheel-check/bin/python tests/smoke_installed.py
+```
+
+Use `tmp/wheel-check/Scripts/python.exe` in PowerShell, and substitute the wheel filename for the version being tested. The smoke script runs outside the checkout and checks both entry points, exact quick-start results, repeat indexing, deletion guards, migration and rollback, cache transfer, and compaction. Pull-request and release CI run the same script against the built wheel.
+
 Build documentation with warnings as errors:
 
 ```bash
