@@ -71,6 +71,11 @@ Import validates:
 - duplicate-key consistency;
 - conflicts with existing entries.
 
+Identity fields must be non-empty strings, vectors must be arrays of finite numbers,
+and token counts must be non-negative integers. Malformed fields are rejected instead
+of being converted. Validation failure leaves the cache unchanged and identifies
+the invalid line.
+
 An identical existing entry is retained and touched. A different vector under an existing key fails instead of overwriting trusted state.
 
 ## Backup strategy

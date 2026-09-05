@@ -212,7 +212,7 @@ class Cache:
             except sqlite3.Error as exc:
                 connection.rollback()
                 raise BackendError(f"Embedding cache transaction failed: {exc}") from exc
-            except Exception:
+            except BaseException:
                 connection.rollback()
                 raise
 
@@ -328,8 +328,11 @@ class Cache:
         seen: dict[tuple[str, str, str], tuple[bytes, int, int]] = {}
         timestamp = _now()
         for chunk_hash, model_id, params_hash, vector, token_count in records:
-            if not chunk_hash or not model_id or not params_hash:
-                raise BackendError("Cache identity fields cannot be empty")
+            if any(
+                not isinstance(value, str) or not value
+                for value in (chunk_hash, model_id, params_hash)
+            ):
+                raise BackendError("Cache identity fields must be non-empty strings")
             if type(token_count) is not int or token_count < 0:
                 raise BackendError("Cached token count must be a non-negative integer")
             try:
@@ -520,29 +523,55 @@ class Cache:
                 raise BackendError(
                     f"Cache import exceeds the {MAX_IMPORT_BYTES:,}-byte safety limit"
                 )
-            with source_path.open("r", encoding="utf-8") as handle:
-                for number, line in enumerate(handle, start=1):
-                    if not line.strip():
-                        continue
-                    if len(line.encode("utf-8")) > MAX_IMPORT_LINE_BYTES:
+            with source_path.open("rb") as handle:
+                total_bytes = 0
+                number = 0
+                while line := handle.readline(MAX_IMPORT_LINE_BYTES + 1):
+                    number += 1
+                    total_bytes += len(line)
+                    if total_bytes > MAX_IMPORT_BYTES:
+                        raise BackendError(
+                            f"Cache import exceeds the {MAX_IMPORT_BYTES:,}-byte safety limit"
+                        )
+                    if len(line) > MAX_IMPORT_LINE_BYTES:
                         raise BackendError(f"Cache export line {number} exceeds the safety limit")
+                    decoded_line = line.decode("utf-8")
+                    if not decoded_line.strip():
+                        continue
                     try:
-                        item: Mapping[str, Any] = json.loads(line)
-                        vector = tuple(float(value) for value in item["vector"])
+                        item = json.loads(decoded_line)
+                        if not isinstance(item, Mapping):
+                            raise ValueError("each cache record must be an object")
+                        identities = tuple(
+                            item[name] for name in ("chunk_hash", "model_id", "params_hash")
+                        )
+                        if any(not isinstance(value, str) or not value for value in identities):
+                            raise ValueError("identity fields must be non-empty strings")
+                        raw_vector = item["vector"]
+                        if not isinstance(raw_vector, list) or any(
+                            type(value) not in (int, float) for value in raw_vector
+                        ):
+                            raise ValueError("vector must be an array of numbers")
+                        vector = tuple(float(value) for value in raw_vector)
                         if not 0 < len(vector) <= MAX_VECTOR_DIMENSIONS:
                             raise ValueError(
                                 f"vector dimensions must be between 1 and {MAX_VECTOR_DIMENSIONS}"
                             )
+                        if any(not math.isfinite(value) for value in vector):
+                            raise ValueError("vector values must be finite")
+                        token_count = item.get("token_count", 0)
+                        if type(token_count) is not int or not 0 <= token_count <= 2**63 - 1:
+                            raise ValueError("token_count must be a non-negative SQLite integer")
                         rows.append(
                             (
-                                str(item["chunk_hash"]),
-                                str(item["model_id"]),
-                                str(item["params_hash"]),
+                                identities[0],
+                                identities[1],
+                                identities[2],
                                 vector,
-                                int(item.get("token_count", 0)),
+                                token_count,
                             )
                         )
-                    except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+                    except (KeyError, TypeError, ValueError, OverflowError) as exc:
                         raise BackendError(
                             f"Invalid cache export at {source_path}:{number}: {exc}"
                         ) from exc
