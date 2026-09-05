@@ -457,6 +457,7 @@ class Cache:
             self.path,
             Path(f"{self.path}-wal").resolve(),
             Path(f"{self.path}-shm").resolve(),
+            Path(f"{self.path}-journal").resolve(),
         }
         if output in protected:
             raise BackendError("Cache export destination cannot be the live cache or its sidecars")

@@ -11,6 +11,7 @@ All notable changes to Steadlith are documented here. The format follows
 - Reject overlapping configuration, cache, index, SQLite sidecar, manifest, and migration paths before writes can corrupt project state.
 - Report invalid UTF-8 configuration files as actionable configuration errors, including JSON CLI errors.
 - Reject malformed cache import fields without coercing identities, vectors, or token counts, and bound import line reads.
+- Prevent forced cache exports from replacing configuration, databases and sidecars, manifest mirrors, migration journals, or receipts.
 - Roll back interrupted cache and index transactions so the same connection can be retried safely.
 - Keep related SQLite reads on one committed generation and report malformed stored metadata as verification failures.
 - Publish manifest mirrors from the latest committed SQLite state under a writer reservation, preventing delayed operations from restoring an older mirror.

@@ -94,6 +94,10 @@ def smoke(project: Path) -> None:
 
     exported = run("cache", "export", "embeddings.jsonl")["exported"]
     assert exported >= 2
+    assert run("cache", "export", "steadlith.toml", "--force", expected=4)["error_type"] == (
+        "ConfigError"
+    )
+    assert config.read_bytes() == original_config
     assert run("cache", "prune", "--max-entries", "0")["removed"] == exported
     assert run("cache", "import", "embeddings.jsonl", "--trust-source")["imported"] == exported
     assert run("index")["embedded_chunks"] == 0

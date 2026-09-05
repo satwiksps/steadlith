@@ -140,6 +140,20 @@ def test_cache_export_cannot_overwrite_live_database_or_existing_file(tmp_path: 
         assert cache.export_jsonl(export, force=True) == 1
 
 
+def test_cache_export_preserves_rollback_journal_even_with_force(tmp_path: Path) -> None:
+    path = tmp_path / "cache.sqlite3"
+    journal = Path(f"{path}-journal")
+    with Cache(path) as cache:
+        cache.put("chunk", "model", "params", (1.0,), token_count=1)
+        journal.write_bytes(b"preserve rollback journal")
+
+        with pytest.raises(BackendError, match="live cache or its sidecars"):
+            cache.export_jsonl(journal, force=True)
+
+        assert journal.read_bytes() == b"preserve rollback journal"
+        assert cache.get("chunk", "model", "params") == (1.0,)
+
+
 def test_unsigned_cache_import_requires_explicit_trust(tmp_path: Path) -> None:
     source = tmp_path / "cache.jsonl"
     source.write_text("", encoding="utf-8")

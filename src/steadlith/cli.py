@@ -22,9 +22,10 @@ from steadlith.config import (
     load_config,
     write_default_config,
 )
-from steadlith.errors import ConfigError, ExitCode, SteadlithError, VerificationError
+from steadlith.errors import BackendError, ConfigError, ExitCode, SteadlithError, VerificationError
 from steadlith.index.plan import OperationKind
 from steadlith.index.service import (
+    _protected_state,
     apply_prepared,
     compact_index,
     index_status,
@@ -386,6 +387,18 @@ def _cache_export(args: argparse.Namespace, console: Console) -> int:
     destination = args.destination.expanduser().resolve()
     if destination == config.resolve(config.index.database):
         raise ConfigError("Cache export destination cannot overwrite the configured index")
+    cache_path = config.resolve(config.store.cache)
+    if destination in {Path(f"{cache_path}{suffix}").resolve() for suffix in ("", "-wal", "-shm")}:
+        raise BackendError("Cache export destination cannot be the live cache or its sidecars")
+    protected_files, protected_directories = _protected_state(config)
+    if destination in {path.resolve() for path in protected_files} or any(
+        destination == directory.resolve() or directory.resolve() in destination.parents
+        for directory in protected_directories
+    ):
+        raise ConfigError(
+            f"Cache export destination cannot overwrite managed project state: {destination}. "
+            "Choose a separate export file, even when using --force."
+        )
     with Cache(config.resolve(config.store.cache), readonly=True) as cache:
         count = cache.export_jsonl(destination, force=args.force)
     if args.json:
