@@ -12,6 +12,36 @@ from steadlith.errors import ExitCode
 from steadlith.store import Cache
 
 
+def test_index_rejects_cache_manifest_collision_before_writing(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config = tmp_path / "steadlith.toml"
+    config.write_text(
+        '[store]\ncache="state.sqlite3.manifest.json"\n[index]\ndatabase="state.sqlite3"\n',
+        encoding="utf-8",
+    )
+    source = tmp_path / "source.txt"
+    source.write_text("alpha beta gamma", encoding="utf-8")
+    original = {path.name: path.read_bytes() for path in tmp_path.iterdir()}
+
+    assert main(["index", str(source), "-c", str(config), "--json"]) == ExitCode.CONFIG_ERROR
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["error_type"] == "ConfigError"
+    assert "overlap" in payload["error"]
+    assert {path.name: path.read_bytes() for path in tmp_path.iterdir()} == original
+
+
+def test_invalid_utf8_config_reports_json_error(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config = tmp_path / "steadlith.toml"
+    config.write_bytes(b"# invalid UTF-8: \xff\n")
+    assert main(["plan", "-c", str(config), "--json"]) == ExitCode.CONFIG_ERROR
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["error_type"] == "ConfigError"
+    assert "UTF-8" in payload["error"]
+
+
 def test_init_status_and_verify_exit_codes(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

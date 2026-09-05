@@ -87,7 +87,7 @@ Provider and model settings participate in embedding identity. Dimensions are va
 | --- | --- | --- |
 | `cache` | `.steadlith/cache.sqlite3` | SQLite content-addressed embedding cache. |
 
-The cache path must stay below the configuration directory and must differ from the index database path.
+The cache path must stay below the configuration directory and must differ from the index database path. State paths cannot overlap the configuration, SQLite sidecars (`-wal`, `-shm`, `-journal`), index manifest (`.manifest.json`), migration journal, or migration receipt directory (`.migrations`). Validation rejects these collisions before writing state.
 
 ## Index fields
 

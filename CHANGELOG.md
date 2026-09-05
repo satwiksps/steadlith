@@ -6,6 +6,11 @@ All notable changes to Steadlith are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Reject overlapping configuration, cache, index, SQLite sidecar, manifest, and migration paths before writes can corrupt project state.
+- Report invalid UTF-8 configuration files as actionable configuration errors, including JSON CLI errors.
+
 ## [1.0.0] - 2026-08-22
 
 ### Added
