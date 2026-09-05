@@ -317,3 +317,73 @@ def test_manifest_failure_is_detected_and_noop_retry_repairs_it(
     assert not retry.plan.requires_apply
     apply_prepared(retry)
     assert verify_index(config) == (True, ())
+
+
+@pytest.mark.parametrize("no_op", [False, True], ids=["update", "no-op"])
+def test_delayed_manifest_publication_keeps_the_newest_committed_snapshot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, no_op: bool
+) -> None:
+    from steadlith.index import service
+
+    config = _config(tmp_path)
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    source = docs / "guide.md"
+    source.write_text("initial source", encoding="utf-8")
+    apply_prepared(prepare_index(config))
+    if not no_op:
+        source.write_text("intermediate update", encoding="utf-8")
+    older = prepare_index(config)
+    write_snapshot = service._write_manifest_snapshot
+    published_newer = False
+
+    def finish_newer_before_mirroring(mirror_config: SteadlithConfig) -> None:
+        nonlocal published_newer
+        if not published_newer:
+            published_newer = True
+            source.write_text("latest committed content", encoding="utf-8")
+            apply_prepared(prepare_index(config))
+        write_snapshot(mirror_config)
+
+    monkeypatch.setattr(service, "_write_manifest_snapshot", finish_newer_before_mirroring)
+    apply_prepared(older)
+    assert published_newer
+    assert index_status(config).generation == (2 if no_op else 3)
+    assert query_index(config, "latest")[0].text == "latest committed content"
+    assert verify_index(config) == (True, ())
+
+
+def test_manifest_publication_reserves_writes_and_recovers_from_file_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sqlite3
+
+    from steadlith.index import service
+
+    config = _config(tmp_path)
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    source = docs / "guide.md"
+    source.write_text("original content", encoding="utf-8")
+    apply_prepared(prepare_index(config))
+    source.write_text("committed replacement", encoding="utf-8")
+    prepared = prepare_index(config)
+    database = config.resolve(config.index.database)
+
+    def reject_mirror_replace(*_args: object) -> None:
+        with sqlite3.connect(database, timeout=0) as writer:
+            with pytest.raises(sqlite3.OperationalError, match="locked"):
+                writer.execute("BEGIN IMMEDIATE")
+        assert query_index(config, "replacement")[0].text == "committed replacement"
+        raise PermissionError("manifest target is read-only")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(service.os, "replace", reject_mirror_replace)
+        with pytest.raises(BackendError, match="index committed.*read-only"):
+            apply_prepared(prepared)
+    assert index_status(config).generation == 2
+    assert not list(database.parent.glob("manifest.*.tmp"))
+    retry = prepare_index(config)
+    assert not retry.plan.requires_apply
+    apply_prepared(retry)
+    assert verify_index(config) == (True, ())

@@ -289,15 +289,17 @@ class SQLiteIndex:
         self.close()
 
     @contextmanager
-    def read_snapshot(self) -> Iterator[None]:
-        """Keep related reads on one committed generation until the context exits."""
+    def read_snapshot(self, *, block_writers: bool = False) -> Iterator[None]:
+        """Keep related reads on one generation, optionally reserving the writer lock."""
 
         with self._lock:
             connection = self._connection
             owns_transaction = connection is not None and not connection.in_transaction
+            if block_writers and (self.readonly or not owns_transaction):
+                raise BackendError("A writer reservation requires an idle writable index")
             try:
                 if owns_transaction and connection is not None:
-                    connection.execute("BEGIN")
+                    connection.execute("BEGIN IMMEDIATE" if block_writers else "BEGIN")
                 yield
             except sqlite3.Error as exc:
                 raise BackendError(f"Could not read SQLite index: {exc}") from exc
