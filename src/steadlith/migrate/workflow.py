@@ -25,7 +25,7 @@ from steadlith.migrate.planner import MigrationPlan
 _CONFIG_LIMIT = 1_048_576
 _JOURNAL_LIMIT = 4_194_304
 _JOURNAL_VERSION = 1
-_TABLE = re.compile(r"^\s*\[([A-Za-z0-9_-]+)\]\s*(?:#.*)?$")
+_TABLE = re.compile(r"""^\s*\[\s*(['"]?)([A-Za-z0-9_-]+)\1\s*\]\s*(?:#.*)?$""")
 
 ConfigValue = str | int
 
@@ -75,7 +75,7 @@ def _set_toml_value(text: str, table: str, key: str, value: ConfigValue) -> str:
         if table_start is not None:
             table_end = index
             break
-        if match.group(1) == table:
+        if match.group(2) == table:
             table_start = index
     assignment = f"{key} = {_toml_scalar(value)}"
     if table_start is None:
@@ -83,7 +83,7 @@ def _set_toml_value(text: str, table: str, key: str, value: ConfigValue) -> str:
             lines.append("")
         lines.extend((f"[{table}]", assignment))
     else:
-        key_pattern = re.compile(rf"^\s*{re.escape(key)}\s*=")
+        key_pattern = re.compile(rf"""^\s*(['"]?){re.escape(key)}\1\s*=""")
         for index in range(table_start + 1, table_end):
             if key_pattern.match(lines[index]):
                 indent = lines[index][: len(lines[index]) - len(lines[index].lstrip())]
@@ -193,6 +193,10 @@ def _make_prepared(
     kind: str,
     rollback_of: str | None = None,
 ) -> PreparedMigration:
+    if len(after_text.encode("utf-8")) > _CONFIG_LIMIT:
+        raise ConfigError(
+            f"Target configuration exceeds the {_CONFIG_LIMIT:,}-byte migration safety limit"
+        )
     changes = _config_changes(current, desired)
     if not changes:
         raise ConfigError("The requested migration does not change chunking or embedding config")
@@ -243,6 +247,15 @@ def prepare_migration(
     before_text = _read_config_text(destination)
     after_text = _patched_config(before_text, overrides)
     desired = loads_config(after_text, base_dir=destination.parent, config_path=destination)
+    expected = dataclasses.asdict(current)
+    for dotted_key, value in overrides.items():
+        table, key = dotted_key.split(".", 1)
+        expected[table][key] = value
+    if dataclasses.asdict(desired) != expected:
+        raise ConfigError(
+            "Migration could not safely update the requested TOML settings. Use named "
+            "[chunker] and [embedding] tables with single-line values, then re-plan."
+        )
     return _make_prepared(
         config_path=destination,
         current=current,
