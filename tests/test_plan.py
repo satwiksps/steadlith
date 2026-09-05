@@ -69,6 +69,28 @@ def test_cache_state_is_consulted_once_per_unique_candidate() -> None:
     assert plan.cost.cache_hits == 2
 
 
+def test_new_occurrences_reuse_active_content_before_consulting_cache() -> None:
+    old = _corpus(_document(_record("same", 0, 10)))
+    new = _corpus(_document(_record("same", 0, 10), _record("same", 10, 20)))
+    cache_queries: list[str] = []
+
+    def cache_miss(chunk_hash: str) -> bool:
+        cache_queries.append(chunk_hash)
+        return False
+
+    plan = create_plan(old, new, is_cached=cache_miss, price_per_million_tokens=2.0)
+    assert plan.counts[OperationKind.ADD] == 1
+    assert plan.cost.chunks_to_embed == 0
+    assert plan.cost.tokens_to_embed == 0
+    assert plan.cost.estimated_cost == 0.0
+    assert plan.cost.cache_hits == 0
+    assert cache_queries == []
+
+    migration = create_plan(old, new, is_cached=cache_miss, embed_all=True)
+    assert migration.cost.chunks_to_embed == 1
+    assert cache_queries == ["same"]
+
+
 @pytest.mark.parametrize("price", [-1.0, float("nan"), float("inf")])
 def test_cost_estimate_rejects_invalid_prices(price: float) -> None:
     with pytest.raises(ValueError, match="finite and non-negative"):

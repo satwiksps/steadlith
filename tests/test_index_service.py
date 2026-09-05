@@ -137,6 +137,34 @@ def test_explicit_project_scope_never_indexes_steadlith_state(tmp_path: Path) ->
     assert not second.plan.requires_apply
 
 
+@pytest.mark.parametrize("move", [False, True], ids=["copy", "rename"])
+def test_plan_matches_active_vector_reuse_after_cache_pruning(tmp_path: Path, move: bool) -> None:
+    from steadlith.store import Cache
+
+    config = _config(tmp_path)
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    source = docs / "original.md"
+    source.write_text("existing reusable content", encoding="utf-8")
+    apply_prepared(prepare_index(config))
+    with Cache(config.resolve(config.store.cache)) as cache:
+        assert cache.prune(max_entries=0) == 1
+    if move:
+        source.rename(docs / "new.md")
+    else:
+        (docs / "new.md").write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+
+    prepared = prepare_index(config)
+    assert prepared.plan.counts[OperationKind.ADD] == 1
+    assert prepared.plan.cost.chunks_to_embed == 0
+    assert prepared.plan.cost.tokens_to_embed == 0
+    applied = apply_prepared(prepared)
+    assert applied.embedded_chunks == 0
+    assert applied.cache_hits == 0
+    assert verify_index(config) == (True, ())
+    assert query_index(config, "reusable")[0].document_id in {"docs/new.md", "docs/original.md"}
+
+
 def test_stale_prepared_plan_cannot_overwrite_newer_state(tmp_path: Path) -> None:
     config = _config(tmp_path)
     docs = tmp_path / "docs"

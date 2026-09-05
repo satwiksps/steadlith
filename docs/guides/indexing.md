@@ -33,7 +33,7 @@ Each occurrence receives one operation:
 
 | Operation | Meaning | New embedding when identity is unchanged? |
 | --- | --- | --- |
-| `add` | New chunk occurrence. | Only on a cache miss for its chunk hash. |
+| `add` | New chunk occurrence. | Only when neither the active index nor cache holds its chunk hash. |
 | `keep` | Same hash and position. | No. |
 | `move` | Same chunk content at a different position or with changed source metadata. | No. |
 | `delete` | Previously active occurrence absent from the target. | No; the old record is tombstoned. |
@@ -41,6 +41,9 @@ Each occurrence receives one operation:
 A model or provider-parameter migration can re-embed kept and moved content because embedding identity changed. The chunk operation alone does not describe embedding work, so also inspect `embedding_count`, `cache_hits`, `tokens`, and the price estimate.
 
 Unknown provider prices remain unknown. Steadlith never fetches pricing or assumes that its word-based token count matches a provider billing tokenizer.
+
+Copied, repeated, and renamed chunks reuse the active vector even after its cache
+entry is pruned. This reuse does not count as a cache hit in the plan or apply result.
 
 ## Apply approval gates
 
